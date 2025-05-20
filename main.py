@@ -41,18 +41,21 @@ def main(args):
         assert len(subdirs(args.val_img_dir)) == args.num_domains
         loaders = Munch(src=get_train_loader(root=args.train_img_dir,
                                              which='source',
-                                             img_size=args.img_size,
+                                             img_height=args.img_height,
+                                             img_width=args.img_width,
                                              batch_size=args.batch_size,
                                              prob=args.randcrop_prob,
                                              num_workers=args.num_workers),
                         ref=get_train_loader(root=args.train_img_dir,
                                              which='reference',
-                                             img_size=args.img_size,
+                                             img_height=args.img_height,
+                                             img_width=args.img_width,
                                              batch_size=args.batch_size,
                                              prob=args.randcrop_prob,
                                              num_workers=args.num_workers),
                         val=get_test_loader(root=args.val_img_dir,
-                                            img_size=args.img_size,
+                                            img_height=args.img_height,
+                                            img_width=args.img_width,
                                             batch_size=args.val_batch_size,
                                             shuffle=True,
                                             num_workers=args.num_workers))
@@ -61,12 +64,14 @@ def main(args):
         assert len(subdirs(args.src_dir)) == args.num_domains
         assert len(subdirs(args.ref_dir)) == args.num_domains
         loaders = Munch(src=get_test_loader(root=args.src_dir,
-                                            img_size=args.img_size,
+                                            img_height=args.img_height,
+                                            img_width=args.img_width,
                                             batch_size=args.val_batch_size,
                                             shuffle=False,
                                             num_workers=args.num_workers),
                         ref=get_test_loader(root=args.ref_dir,
-                                            img_size=args.img_size,
+                                            img_height=args.img_height,
+                                            img_width=args.img_width,
                                             batch_size=args.val_batch_size,
                                             shuffle=False,
                                             num_workers=args.num_workers))
@@ -84,8 +89,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # model arguments
-    parser.add_argument('--img_size', type=int, default=256,
-                        help='Image resolution')
+    parser.add_argument('--img_height', type=int, default=512,
+                        help='Image height')
+    parser.add_argument('--img_width', type=int, default=192,
+                        help='Image width')
     parser.add_argument('--num_domains', type=int, default=2,
                         help='Number of domains')
     parser.add_argument('--latent_dim', type=int, default=16,
