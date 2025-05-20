@@ -102,4 +102,15 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# --- StarGAN v2 specific ---
+# Training outputs, large files
 expr/
+*.ckpt
+*.pt
+*.pth
+*.mp4
+*.avi
+*.gif
+*.jpg
+*.png
