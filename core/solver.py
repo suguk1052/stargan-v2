@@ -180,6 +180,10 @@ class Solver(nn.Module):
         src = next(InputFetcher(loaders.src, None, args.latent_dim, 'test'))
         ref = next(InputFetcher(loaders.ref, None, args.latent_dim, 'test'))
 
+        # Fix: override ref.y to be 1 (target domain = scene)
+        batch_size = ref.x.size(0)
+        ref.y = torch.ones(batch_size, dtype=torch.long).to(ref.x.device)
+
         fname = ospj(args.result_dir, 'reference.jpg')
         print('Working on {}...'.format(fname))
         utils.translate_using_reference(nets_ema, args, src.x, ref.x, ref.y, fname)
