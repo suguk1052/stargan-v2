@@ -103,7 +103,8 @@ class Solver(nn.Module):
             x_ref, x_ref2, y_trg = inputs.x_ref, inputs.x_ref2, inputs.y_ref
             z_trg, z_trg2 = inputs.z_trg, inputs.z_trg2
 
-            masks = nets.fan.get_heatmap(x_real) if args.w_hpf > 0 else None
+            # masks = nets.fan.get_heatmap(x_real) if args.w_hpf > 0 else None
+            masks = None
 
             # train the discriminator
             d_loss, d_losses_latent = compute_d_loss(
@@ -180,10 +181,6 @@ class Solver(nn.Module):
         src = next(InputFetcher(loaders.src, None, args.latent_dim, 'test'))
         ref = next(InputFetcher(loaders.ref, None, args.latent_dim, 'test'))
 
-        # Fix: override ref.y to be 1 (target domain = scene)
-        batch_size = ref.x.size(0)
-        ref.y = torch.ones(batch_size, dtype=torch.long).to(ref.x.device)
-
         fname = ospj(args.result_dir, 'reference.jpg')
         print('Working on {}...'.format(fname))
         utils.translate_using_reference(nets_ema, args, src.x, ref.x, ref.y, fname)
@@ -258,7 +255,9 @@ def compute_g_loss(nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, m
     loss_ds = torch.mean(torch.abs(x_fake - x_fake2))
 
     # cycle-consistency loss
-    masks = nets.fan.get_heatmap(x_fake) if args.w_hpf > 0 else None
+    # masks = nets.fan.get_heatmap(x_fake) if args.w_hpf > 0 else None
+    masks = None
+
     s_org = nets.style_encoder(x_real, y_org)
     x_rec = nets.generator(x_fake, s_org, masks=masks)
     loss_cyc = torch.mean(torch.abs(x_rec - x_real))

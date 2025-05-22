@@ -297,10 +297,10 @@ def build_model(args):
                      mapping_network=mapping_network_ema,
                      style_encoder=style_encoder_ema)
 
-    if args.w_hpf > 0:
-        fan = nn.DataParallel(FAN(fname_pretrained=args.wing_path).eval())
-        fan.get_heatmap = fan.module.get_heatmap
-        nets.fan = fan
-        nets_ema.fan = fan
+    # if args.w_hpf > 0:
+    #     fan = nn.DataParallel(FAN(fname_pretrained=args.wing_path).eval())
+    #     fan.get_heatmap = fan.module.get_heatmap
+    #     nets.fan = fan
+    #     nets_ema.fan = fan
 
     return nets, nets_ema
