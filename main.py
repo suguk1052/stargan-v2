@@ -71,6 +71,16 @@ def main(args):
                                             shuffle=False,
                                             num_workers=args.num_workers))
         solver.sample(loaders)
+
+    elif args.mode == 'latent_sample':
+        assert len(subdirs(args.src_dir)) == args.num_domains
+        loaders = Munch(src=get_test_loader(root=args.src_dir,
+                                            img_size=args.img_size,
+                                            batch_size=args.val_batch_size,
+                                            shuffle=False,
+                                            num_workers=args.num_workers))
+        solver.sample_with_latent(loaders)
+
     elif args.mode == 'eval':
         solver.evaluate()
     elif args.mode == 'align':
@@ -130,12 +140,12 @@ if __name__ == '__main__':
                         help='Decay rate for 2nd moment of Adam')
     parser.add_argument('--weight_decay', type=float, default=1e-4,
                         help='Weight decay for optimizer')
-    parser.add_argument('--num_outs_per_domain', type=int, default=10,
+    parser.add_argument('--num_outs_per_domain', type=int, default=4,
                         help='Number of generated images per domain during sampling')
 
     # misc
     parser.add_argument('--mode', type=str, required=True,
-                        choices=['train', 'sample', 'eval', 'align'],
+                        choices=['train', 'sample', 'eval', 'align', 'latent_sample'],
                         help='This argument is used in solver')
     parser.add_argument('--num_workers', type=int, default=4,
                         help='Number of workers used in DataLoader')

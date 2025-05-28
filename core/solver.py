@@ -190,6 +190,29 @@ class Solver(nn.Module):
         utils.video_ref(nets_ema, args, src.x, ref.x, ref.y, fname)
 
     @torch.no_grad()
+    def sample_with_latent(self, loaders):
+        args = self.args
+        nets_ema = self.nets_ema
+        os.makedirs(args.result_dir, exist_ok=True)
+        self._load_checkpoint(args.resume_iter)
+
+        src = next(InputFetcher(loaders.src, None, args.latent_dim, 'test'))
+
+        # latent-guided translation with fixed domain and random latent
+        fname = ospj(args.result_dir, 'latent.jpg')
+        print('Working on {}...'.format(fname))
+
+        # target domain: use domain 1 (e.g., 'male' for CelebA)
+        y_trg_list = [torch.ones(src.x.size(0)).long().to(self.device)]
+
+        # latent vectors: generate multiple samples for style variation
+        z_trg_list = [torch.randn(src.x.size(0), args.latent_dim).to(self.device)
+                      for _ in range(args.num_outs_per_domain)]
+
+        # psi controls style strength (0 = avg style, 1 = full style)
+        utils.translate_using_latent(nets_ema, args, src.x, y_trg_list, z_trg_list, psi=1.0, filename=fname)
+
+    @torch.no_grad()
     def evaluate(self):
         args = self.args
         nets_ema = self.nets_ema
@@ -293,3 +316,4 @@ def r1_reg(d_out, x_in):
     assert(grad_dout2.size() == x_in.size())
     reg = 0.5 * grad_dout2.view(batch_size, -1).sum(1).mean(0)
     return reg
+
