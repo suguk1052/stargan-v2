@@ -29,6 +29,29 @@ def listdir(dname):
                           for ext in ['png', 'jpg', 'jpeg', 'JPG']]))
     return fnames
 
+# Zero-padding with aspect ratio preserved
+class ResizeWithPadding:
+    def __init__(self, target_size, fill_color=(128, 128, 128)):
+        self.target_size = target_size
+        self.fill_color = fill_color
+
+    def __call__(self, img):
+        original_width, original_height = img.size
+        target_width, target_height = self.target_size
+
+        # Resize the image while keeping the aspect ratio
+        ratio = min(target_width / original_width, target_height / original_height)
+        new_width = int(original_width * ratio)
+        new_height = int(original_height * ratio)
+        img = img.resize((new_width, new_height), Image.BILINEAR)
+
+        # Create a new blank canvas and paste the resized image at the center
+        new_img = Image.new("RGB", (target_width, target_height), self.fill_color)
+        paste_x = (target_width - new_width) // 2
+        paste_y = (target_height - new_height) // 2
+        new_img.paste(img, (paste_x, paste_y))
+        return new_img
+
 
 class DefaultDataset(data.Dataset):
     def __init__(self, root, transform=None):
@@ -97,7 +120,8 @@ def get_train_loader(root, which='source', img_size=256,
 
     transform = transforms.Compose([
         rand_crop,
-        transforms.Resize([img_size, img_size]),
+        # transforms.Resize([img_size, img_size]),
+        ResizeWithPadding((img_size, img_size)),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5, 0.5, 0.5],
@@ -134,7 +158,8 @@ def get_eval_loader(root, img_size=256, batch_size=32,
         std = [0.5, 0.5, 0.5]
 
     transform = transforms.Compose([
-        transforms.Resize([img_size, img_size]),
+        # transforms.Resize([img_size, img_size]),
+        ResizeWithPadding((img_size, img_size)),
         transforms.Resize([height, width]),
         transforms.ToTensor(),
         transforms.Normalize(mean=mean, std=std)
@@ -153,7 +178,8 @@ def get_test_loader(root, img_size=256, batch_size=32,
                     shuffle=True, num_workers=4):
     print('Preparing DataLoader for the generation phase...')
     transform = transforms.Compose([
-        transforms.Resize([img_size, img_size]),
+        # transforms.Resize([img_size, img_size]),
+        ResizeWithPadding((img_size, img_size)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5, 0.5, 0.5],
                              std=[0.5, 0.5, 0.5]),

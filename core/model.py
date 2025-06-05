@@ -122,7 +122,7 @@ class AdainResBlk(nn.Module):
 
 class HighPass(nn.Module):
     def __init__(self, w_hpf, device):
-        super(HighPass, self).__init__()
+        super().__init__()
         self.register_buffer('filter',
                              torch.tensor([[-1, -1, -1],
                                            [-1, 8., -1],
@@ -214,7 +214,7 @@ class MappingNetwork(nn.Module):
         for layer in self.unshared:
             out += [layer(h)]
         out = torch.stack(out, dim=1)  # (batch, num_domains, style_dim)
-        idx = torch.LongTensor(range(y.size(0))).to(y.device)
+        idx = torch.arange(y.size(0)).to(y.device)
         s = out[idx, y]  # (batch, style_dim)
         return s
 
