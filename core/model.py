@@ -248,7 +248,7 @@ class StyleEncoder(nn.Module):
         for layer in self.unshared:
             out += [layer(h)]
         out = torch.stack(out, dim=1)  # (batch, num_domains, style_dim)
-        idx = torch.LongTensor(range(y.size(0))).to(y.device)
+        idx = torch.arange(y.size(0)).to(y.device)
         s = out[idx, y]  # (batch, style_dim)
         return s
 
@@ -275,7 +275,7 @@ class Discriminator(nn.Module):
     def forward(self, x, y):
         out = self.main(x)
         out = out.view(out.size(0), -1)  # (batch, num_domains)
-        idx = torch.LongTensor(range(y.size(0))).to(y.device)
+        idx = torch.arange(y.size(0)).to(y.device)
         out = out[idx, y]  # (batch)
         return out
 
