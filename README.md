@@ -20,6 +20,14 @@ Click the figure to watch the teaser video. <br/>
 ## TensorFlow implementation
 The TensorFlow implementation of StarGAN v2 by our team member junho can be found at [clovaai/stargan-v2-tensorflow](https://github.com/clovaai/stargan-v2-tensorflow).
 
+## Rectangular image support
+This repository adds flexible image resolution handling:
+
+- Use `--img_size` for height and the new `--aspect_ratio` for width/height to work with non-square images.
+- Both dimensions are rounded to the nearest multiple of 16 for network compatibility.
+- Input images are center-cropped and resized to preserve their original aspect ratio.
+- Generator, style encoder, and discriminator now operate on rectangular resolutions end-to-end.
+
 ## Software installation
 Clone this repository:
 

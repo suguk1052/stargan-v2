@@ -134,10 +134,12 @@ class HighPass(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, img_size=256, style_dim=64, max_conv_dim=512, w_hpf=1):
+    def __init__(self, img_height=256, img_width=256, style_dim=64, max_conv_dim=512, w_hpf=1):
         super().__init__()
+        img_size = min(img_height, img_width)
         dim_in = 2**14 // img_size
-        self.img_size = img_size
+        self.img_height = img_height
+        self.img_width = img_width
         self.from_rgb = nn.Conv2d(3, dim_in, 3, 1, 1)
         self.encode = nn.ModuleList()
         self.decode = nn.ModuleList()
@@ -220,8 +222,9 @@ class MappingNetwork(nn.Module):
 
 
 class StyleEncoder(nn.Module):
-    def __init__(self, img_size=256, style_dim=64, num_domains=2, max_conv_dim=512):
+    def __init__(self, img_height=256, img_width=256, style_dim=64, num_domains=2, max_conv_dim=512):
         super().__init__()
+        img_size = min(img_height, img_width)
         dim_in = 2**14 // img_size
         blocks = []
         blocks += [nn.Conv2d(3, dim_in, 3, 1, 1)]
@@ -233,9 +236,10 @@ class StyleEncoder(nn.Module):
             dim_in = dim_out
 
         blocks += [nn.LeakyReLU(0.2)]
-        blocks += [nn.Conv2d(dim_out, dim_out, 4, 1, 0)]
-        blocks += [nn.LeakyReLU(0.2)]
         self.shared = nn.Sequential(*blocks)
+        self.pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.conv = nn.Conv2d(dim_out, dim_out, 1, 1, 0)
+        self.act = nn.LeakyReLU(0.2)
 
         self.unshared = nn.ModuleList()
         for _ in range(num_domains):
@@ -243,6 +247,9 @@ class StyleEncoder(nn.Module):
 
     def forward(self, x, y):
         h = self.shared(x)
+        h = self.pool(h)
+        h = self.conv(h)
+        h = self.act(h)
         h = h.view(h.size(0), -1)
         out = []
         for layer in self.unshared:
@@ -254,8 +261,9 @@ class StyleEncoder(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, img_size=256, num_domains=2, max_conv_dim=512):
+    def __init__(self, img_height=256, img_width=256, num_domains=2, max_conv_dim=512):
         super().__init__()
+        img_size = min(img_height, img_width)
         dim_in = 2**14 // img_size
         blocks = []
         blocks += [nn.Conv2d(3, dim_in, 3, 1, 1)]
@@ -267,7 +275,8 @@ class Discriminator(nn.Module):
             dim_in = dim_out
 
         blocks += [nn.LeakyReLU(0.2)]
-        blocks += [nn.Conv2d(dim_out, dim_out, 4, 1, 0)]
+        blocks += [nn.AdaptiveAvgPool2d((1, 1))]
+        blocks += [nn.Conv2d(dim_out, dim_out, 1, 1, 0)]
         blocks += [nn.LeakyReLU(0.2)]
         blocks += [nn.Conv2d(dim_out, num_domains, 1, 1, 0)]
         self.main = nn.Sequential(*blocks)
@@ -281,10 +290,10 @@ class Discriminator(nn.Module):
 
 
 def build_model(args):
-    generator = nn.DataParallel(Generator(args.img_size, args.style_dim, w_hpf=args.w_hpf))
+    generator = nn.DataParallel(Generator(args.img_height, args.img_width, args.style_dim, w_hpf=args.w_hpf))
     mapping_network = nn.DataParallel(MappingNetwork(args.latent_dim, args.style_dim, args.num_domains))
-    style_encoder = nn.DataParallel(StyleEncoder(args.img_size, args.style_dim, args.num_domains))
-    discriminator = nn.DataParallel(Discriminator(args.img_size, args.num_domains))
+    style_encoder = nn.DataParallel(StyleEncoder(args.img_height, args.img_width, args.style_dim, args.num_domains))
+    discriminator = nn.DataParallel(Discriminator(args.img_height, args.img_width, args.num_domains))
     generator_ema = copy.deepcopy(generator)
     mapping_network_ema = copy.deepcopy(mapping_network)
     style_encoder_ema = copy.deepcopy(style_encoder)

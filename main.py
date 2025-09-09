@@ -41,18 +41,18 @@ def main(args):
         assert len(subdirs(args.val_img_dir)) == args.num_domains
         loaders = Munch(src=get_train_loader(root=args.train_img_dir,
                                              which='source',
-                                             img_size=args.img_size,
+                                             img_size=(args.img_height, args.img_width),
                                              batch_size=args.batch_size,
                                              prob=args.randcrop_prob,
                                              num_workers=args.num_workers),
                         ref=get_train_loader(root=args.train_img_dir,
                                              which='reference',
-                                             img_size=args.img_size,
+                                             img_size=(args.img_height, args.img_width),
                                              batch_size=args.batch_size,
                                              prob=args.randcrop_prob,
                                              num_workers=args.num_workers),
                         val=get_test_loader(root=args.val_img_dir,
-                                            img_size=args.img_size,
+                                            img_size=(args.img_height, args.img_width),
                                             batch_size=args.val_batch_size,
                                             shuffle=True,
                                             num_workers=args.num_workers))
@@ -61,12 +61,12 @@ def main(args):
         assert len(subdirs(args.src_dir)) == args.num_domains
         assert len(subdirs(args.ref_dir)) == args.num_domains
         loaders = Munch(src=get_test_loader(root=args.src_dir,
-                                            img_size=args.img_size,
+                                            img_size=(args.img_height, args.img_width),
                                             batch_size=args.val_batch_size,
                                             shuffle=False,
                                             num_workers=args.num_workers),
-                        ref=get_test_loader(root=args.ref_dir,
-                                            img_size=args.img_size,
+                       ref=get_test_loader(root=args.ref_dir,
+                                            img_size=(args.img_height, args.img_width),
                                             batch_size=args.val_batch_size,
                                             shuffle=False,
                                             num_workers=args.num_workers))
@@ -75,7 +75,7 @@ def main(args):
     elif args.mode == 'latent_sample':
         assert len(subdirs(args.src_dir)) == args.num_domains
         loaders = Munch(src=get_test_loader(root=args.src_dir,
-                                            img_size=args.img_size,
+                                            img_size=(args.img_height, args.img_width),
                                             batch_size=args.val_batch_size,
                                             shuffle=False,
                                             num_workers=args.num_workers))
@@ -95,7 +95,9 @@ if __name__ == '__main__':
 
     # model arguments
     parser.add_argument('--img_size', type=int, default=256,
-                        help='Image resolution')
+                        help='Base image height (multiple of 16)')
+    parser.add_argument('--aspect_ratio', type=float, default=1.0,
+                        help='Width/height aspect ratio')
     parser.add_argument('--num_domains', type=int, default=2,
                         help='Number of domains')
     parser.add_argument('--latent_dim', type=int, default=16,
@@ -189,4 +191,11 @@ if __name__ == '__main__':
     parser.add_argument('--eval_every', type=int, default=50000)
 
     args = parser.parse_args()
+
+    def _round16(x):
+        return int(round(x / 16) * 16)
+
+    args.img_height = _round16(args.img_size)
+    args.img_width = _round16(args.img_height * args.aspect_ratio)
+
     main(args)

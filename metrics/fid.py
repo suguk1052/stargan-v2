@@ -82,10 +82,17 @@ def calculate_fid_given_paths(paths, img_size=256, batch_size=50):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--paths', type=str, nargs=2, help='paths to real and fake images')
-    parser.add_argument('--img_size', type=int, default=256, help='image resolution')
+    parser.add_argument('--img_size', type=int, default=256, help='base image height')
+    parser.add_argument('--aspect_ratio', type=float, default=1.0, help='width/height aspect ratio')
     parser.add_argument('--batch_size', type=int, default=64, help='batch size to use')
     args = parser.parse_args()
-    fid_value = calculate_fid_given_paths(args.paths, args.img_size, args.batch_size)
+
+    def _round16(x):
+        return int(round(x / 16) * 16)
+
+    h = _round16(args.img_size)
+    w = _round16(h * args.aspect_ratio)
+    fid_value = calculate_fid_given_paths(args.paths, (h, w), args.batch_size)
     print('FID: ', fid_value)
 
 # python -m metrics.fid --paths PATH_REAL PATH_FAKE

@@ -40,7 +40,7 @@ def calculate_metrics(nets, args, step, mode):
         if mode == 'reference':
             path_ref = os.path.join(args.val_img_dir, trg_domain)
             loader_ref = get_eval_loader(root=path_ref,
-                                         img_size=args.img_size,
+                                         img_size=(args.img_height, args.img_width),
                                          batch_size=args.val_batch_size,
                                          imagenet_normalize=False,
                                          drop_last=True)
@@ -48,7 +48,7 @@ def calculate_metrics(nets, args, step, mode):
         for src_idx, src_domain in enumerate(src_domains):
             path_src = os.path.join(args.val_img_dir, src_domain)
             loader_src = get_eval_loader(root=path_src,
-                                         img_size=args.img_size,
+                                         img_size=(args.img_height, args.img_width),
                                          batch_size=args.val_batch_size,
                                          imagenet_normalize=False)
 
@@ -132,7 +132,7 @@ def calculate_fid_for_all_tasks(args, domains, step, mode):
             print('Calculating FID for %s...' % task)
             fid_value = calculate_fid_given_paths(
                 paths=[path_real, path_fake],
-                img_size=args.img_size,
+                img_size=(args.img_height, args.img_width),
                 batch_size=args.val_batch_size)
             fid_values['FID_%s/%s' % (mode, task)] = fid_value
 

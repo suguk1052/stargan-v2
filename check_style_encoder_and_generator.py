@@ -4,17 +4,25 @@ from core.model import build_model
 from torchvision import transforms
 from PIL import Image
 import argparse
+from core.data_loader import CenterCropResize
 
 # ---------------------
 # 1. 기본 세팅
 # ---------------------
 parser = argparse.ArgumentParser()
 parser.add_argument('--img_size', type=int, default=256)
+parser.add_argument('--aspect_ratio', type=float, default=1.0)
 parser.add_argument('--style_dim', type=int, default=64)
 parser.add_argument('--latent_dim', type=int, default=16)
 parser.add_argument('--num_domains', type=int, default=2)
 parser.add_argument('--w_hpf', type=float, default=0)
 args = parser.parse_args(args=[])
+
+def _round16(x):
+    return int(round(x / 16) * 16)
+
+args.img_height = _round16(args.img_size)
+args.img_width = _round16(args.img_height * args.aspect_ratio)
 
 # Load model
 nets, nets_ema = build_model(args)
@@ -41,7 +49,7 @@ for name, module in nets_ema.items():
 # ---------------------
 def load_image(path):
     tfm = transforms.Compose([
-        transforms.Resize((args.img_size, args.img_size)),
+        CenterCropResize((args.img_height, args.img_width)),
         transforms.ToTensor()
     ])
     img = Image.open(path).convert("RGB")
