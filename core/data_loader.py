@@ -29,28 +29,25 @@ def listdir(dname):
                           for ext in ['png', 'jpg', 'jpeg', 'JPG']]))
     return fnames
 
-# Zero-padding with aspect ratio preserved
-class ResizeWithPadding:
-    def __init__(self, target_size, fill_color=(128, 128, 128)):
-        self.target_size = target_size
-        self.fill_color = fill_color
+# Center-crop to match the target aspect ratio, then resize
+class CenterCropResize:
+    def __init__(self, target_size):
+        """target_size: (height, width)"""
+        self.target_h, self.target_w = target_size
+        self.target_ratio = self.target_w / self.target_h
 
     def __call__(self, img):
-        original_width, original_height = img.size
-        target_width, target_height = self.target_size
-
-        # Resize the image while keeping the aspect ratio
-        ratio = min(target_width / original_width, target_height / original_height)
-        new_width = int(original_width * ratio)
-        new_height = int(original_height * ratio)
-        img = img.resize((new_width, new_height), Image.BILINEAR)
-
-        # Create a new blank canvas and paste the resized image at the center
-        new_img = Image.new("RGB", (target_width, target_height), self.fill_color)
-        paste_x = (target_width - new_width) // 2
-        paste_y = (target_height - new_height) // 2
-        new_img.paste(img, (paste_x, paste_y))
-        return new_img
+        w, h = img.size
+        in_ratio = w / h
+        if in_ratio > self.target_ratio:
+            new_w = int(self.target_ratio * h)
+            left = (w - new_w) // 2
+            img = img.crop((left, 0, left + new_w, h))
+        elif in_ratio < self.target_ratio:
+            new_h = int(w / self.target_ratio)
+            top = (h - new_h) // 2
+            img = img.crop((0, top, w, top + new_h))
+        return img.resize((self.target_w, self.target_h), Image.BILINEAR)
 
 
 class DefaultDataset(data.Dataset):
@@ -113,15 +110,20 @@ def get_train_loader(root, which='source', img_size=256,
     print('Preparing DataLoader to fetch %s images '
           'during the training phase...' % which)
 
+    if isinstance(img_size, tuple):
+        height, width = img_size
+    else:
+        height = width = img_size
+    target_ratio = width / height
+
     crop = transforms.RandomResizedCrop(
-        img_size, scale=[0.8, 1.0], ratio=[0.9, 1.1])
+        (height, width), scale=[0.8, 1.0], ratio=[0.9 * target_ratio, 1.1 * target_ratio])
     rand_crop = transforms.Lambda(
         lambda x: crop(x) if random.random() < prob else x)
 
     transform = transforms.Compose([
         rand_crop,
-        # transforms.Resize([img_size, img_size]),
-        ResizeWithPadding((img_size, img_size)),
+        CenterCropResize((height, width)),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5, 0.5, 0.5],
@@ -148,19 +150,23 @@ def get_eval_loader(root, img_size=256, batch_size=32,
                     imagenet_normalize=True, shuffle=True,
                     num_workers=4, drop_last=False):
     print('Preparing DataLoader for the evaluation phase...')
+    if isinstance(img_size, tuple):
+        height, width = img_size
+    else:
+        height = width = img_size
+
     if imagenet_normalize:
-        height, width = 299, 299
+        resize_h, resize_w = 299, 299
         mean = [0.485, 0.456, 0.406]
         std = [0.229, 0.224, 0.225]
     else:
-        height, width = img_size, img_size
+        resize_h, resize_w = height, width
         mean = [0.5, 0.5, 0.5]
         std = [0.5, 0.5, 0.5]
 
     transform = transforms.Compose([
-        # transforms.Resize([img_size, img_size]),
-        ResizeWithPadding((img_size, img_size)),
-        transforms.Resize([height, width]),
+        CenterCropResize((height, width)),
+        transforms.Resize([resize_h, resize_w]),
         transforms.ToTensor(),
         transforms.Normalize(mean=mean, std=std)
     ])
@@ -177,9 +183,13 @@ def get_eval_loader(root, img_size=256, batch_size=32,
 def get_test_loader(root, img_size=256, batch_size=32,
                     shuffle=True, num_workers=4):
     print('Preparing DataLoader for the generation phase...')
+    if isinstance(img_size, tuple):
+        height, width = img_size
+    else:
+        height = width = img_size
+
     transform = transforms.Compose([
-        # transforms.Resize([img_size, img_size]),
-        ResizeWithPadding((img_size, img_size)),
+        CenterCropResize((height, width)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5, 0.5, 0.5],
                              std=[0.5, 0.5, 0.5]),
