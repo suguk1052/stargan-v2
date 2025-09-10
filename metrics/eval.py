@@ -9,7 +9,6 @@ Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
 """
 
 import os
-import shutil
 from collections import OrderedDict
 from tqdm import tqdm
 
@@ -53,9 +52,8 @@ def calculate_metrics(nets, args, step, mode):
                                          imagenet_normalize=False)
 
             task = '%s2%s' % (src_domain, trg_domain)
-            path_fake = os.path.join(args.eval_dir, task)
-            shutil.rmtree(path_fake, ignore_errors=True)
-            os.makedirs(path_fake)
+            path_fake = os.path.join(args.eval_dir, mode, task)
+            os.makedirs(path_fake, exist_ok=True)
 
             lpips_values = []
             print('Generating images and calculating LPIPS for %s...' % task)
@@ -128,7 +126,7 @@ def calculate_fid_for_all_tasks(args, domains, step, mode):
         for src_domain in src_domains:
             task = '%s2%s' % (src_domain, trg_domain)
             path_real = os.path.join(args.train_img_dir, trg_domain)
-            path_fake = os.path.join(args.eval_dir, task)
+            path_fake = os.path.join(args.eval_dir, mode, task)
             print('Calculating FID for %s...' % task)
             fid_value, counts = calculate_fid_given_paths(
                 paths=[path_real, path_fake],
