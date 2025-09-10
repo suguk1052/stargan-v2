@@ -205,7 +205,7 @@ if __name__ == '__main__':
     if args.val_img_dir is None:
         args.val_img_dir = os.path.join('data', args.dataset, 'val')
 
-    timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+    timestamp = datetime.now().strftime('%m%d-%H%M')
     if args.expr_dir is None:
         args.expr_dir = os.path.join('expr', f'{args.dataset}_{timestamp}')
     if args.sample_dir is None:
