@@ -69,9 +69,8 @@ After downloading the pre-trained networks, you can synthesize output images ref
 
 <b>CelebA-HQ.</b> To generate images and interpolation videos, run the following command:
 ```bash
-python main.py --mode sample --num_domains 2 --resume_iter 100000 --w_hpf 1 \
-               --checkpoint_dir expr/checkpoints/celeba_hq \
-               --result_dir expr/results/celeba_hq \
+python main.py --mode sample --dataset celeba_hq --num_domains 2 --w_hpf 1 \
+               --expr_dir expr/celeba_hq_experiment --resume_iter 100000 \
                --src_dir assets/representative/celeba_hq/src \
                --ref_dir assets/representative/celeba_hq/ref
 ```
@@ -90,9 +89,8 @@ python main.py --mode align \
 
 <b>AFHQ.</b> To generate images and interpolation videos, run the following command:
 ```bash
-python main.py --mode sample --num_domains 3 --resume_iter 100000 --w_hpf 0 \
-               --checkpoint_dir expr/checkpoints/afhq \
-               --result_dir expr/results/afhq \
+python main.py --mode sample --dataset afhq --num_domains 3 --w_hpf 0 \
+               --expr_dir expr/afhq_experiment --resume_iter 100000 \
                --src_dir assets/representative/afhq/src \
                --ref_dir assets/representative/afhq/ref
 ```
@@ -105,20 +103,12 @@ To evaluate StarGAN v2 using [Fr&eacute;chet Inception Distance (FID)](https://a
 
 ```bash
 # celeba-hq
-python main.py --mode eval --num_domains 2 --w_hpf 1 \
-               --resume_iter 100000 \
-               --train_img_dir data/celeba_hq/train \
-               --val_img_dir data/celeba_hq/val \
-               --checkpoint_dir expr/checkpoints/celeba_hq \
-               --eval_dir expr/eval/celeba_hq
+python main.py --mode eval --dataset celeba_hq --num_domains 2 --w_hpf 1 \
+               --expr_dir expr/celeba_hq_experiment --resume_iter 100000
 
 # afhq
-python main.py --mode eval --num_domains 3 --w_hpf 0 \
-               --resume_iter 100000 \
-               --train_img_dir data/afhq/train \
-               --val_img_dir data/afhq/val \
-               --checkpoint_dir expr/checkpoints/afhq \
-               --eval_dir expr/eval/afhq
+python main.py --mode eval --dataset afhq --num_domains 3 --w_hpf 0 \
+               --expr_dir expr/afhq_experiment --resume_iter 100000
 ```
 
 Note that the evaluation metrics are calculated using random latent vectors or reference images, both of which are selected by the [seed number](https://github.com/clovaai/stargan-v2/blob/master/main.py#L35). In the paper, we reported the average of values from 10 measurements using different seed numbers. The following table shows the calculated values for both latent-guided and reference-guided synthesis.
@@ -131,20 +121,16 @@ Note that the evaluation metrics are calculated using random latent vectors or r
 
 
 ## Training networks
-To train StarGAN v2 from scratch, run the following commands. Generated images and network checkpoints will be stored in the `expr/samples` and `expr/checkpoints` directories, respectively. Training takes about three days on a single Tesla V100 GPU. Please see [here](https://github.com/clovaai/stargan-v2/blob/master/main.py#L86-L179) for training arguments and a description of them. 
+To train StarGAN v2 from scratch, run the following commands. By default, the code expects datasets to be placed under `data/<dataset>/train` and `data/<dataset>/val` and stores all experiment artifacts under `expr/<dataset>_<timestamp>/`. You can override the root experiment directory with `--expr_dir` if needed. Training takes about three days on a single Tesla V100 GPU. Please see [here](https://github.com/clovaai/stargan-v2/blob/master/main.py#L86-L179) for training arguments and a description of them.
 
 ```bash
 # celeba-hq
-python main.py --mode train --num_domains 2 --w_hpf 1 \
-               --lambda_reg 1 --lambda_sty 1 --lambda_ds 1 --lambda_cyc 1 \
-               --train_img_dir data/celeba_hq/train \
-               --val_img_dir data/celeba_hq/val
+python main.py --mode train --dataset celeba_hq --num_domains 2 --w_hpf 1 \
+               --lambda_reg 1 --lambda_sty 1 --lambda_ds 1 --lambda_cyc 1
 
 # afhq
-python main.py --mode train --num_domains 3 --w_hpf 0 \
-               --lambda_reg 1 --lambda_sty 1 --lambda_ds 2 --lambda_cyc 1 \
-               --train_img_dir data/afhq/train \
-               --val_img_dir data/afhq/val
+python main.py --mode train --dataset afhq --num_domains 3 --w_hpf 0 \
+               --lambda_reg 1 --lambda_sty 1 --lambda_ds 2 --lambda_cyc 1
 ```
 
 ## Animal Faces-HQ dataset (AFHQ)

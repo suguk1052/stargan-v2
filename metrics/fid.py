@@ -61,10 +61,12 @@ def frechet_distance(mu, cov, mu2, cov2):
 
 @torch.no_grad()
 def calculate_fid_given_paths(paths, img_size=256, batch_size=50):
-    print('Calculating FID given paths %s and %s...' % (paths[0], paths[1]))
+    loaders = [get_eval_loader(path, img_size, batch_size) for path in paths]
+    counts = [len(loader.dataset) for loader in loaders]
+    print('Calculating FID given paths %s (N=%d) and %s (N=%d)...' %
+          (paths[0], counts[0], paths[1], counts[1]))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     inception = InceptionV3().eval().to(device)
-    loaders = [get_eval_loader(path, img_size, batch_size) for path in paths]
 
     mu, cov = [], []
     for loader in loaders:
@@ -76,7 +78,7 @@ def calculate_fid_given_paths(paths, img_size=256, batch_size=50):
         mu.append(np.mean(actvs, axis=0))
         cov.append(np.cov(actvs, rowvar=False))
     fid_value = frechet_distance(mu[0], cov[0], mu[1], cov[1])
-    return fid_value
+    return fid_value, counts
 
 
 if __name__ == '__main__':
@@ -92,7 +94,7 @@ if __name__ == '__main__':
 
     h = _round16(args.img_size)
     w = _round16(h * args.aspect_ratio)
-    fid_value = calculate_fid_given_paths(args.paths, (h, w), args.batch_size)
-    print('FID: ', fid_value)
+    fid_value, counts = calculate_fid_given_paths(args.paths, (h, w), args.batch_size)
+    print('FID: %s (N_real=%d, N_fake=%d)' % (fid_value, counts[0], counts[1]))
 
 # python -m metrics.fid --paths PATH_REAL PATH_FAKE

@@ -130,17 +130,23 @@ def calculate_fid_for_all_tasks(args, domains, step, mode):
             path_real = os.path.join(args.train_img_dir, trg_domain)
             path_fake = os.path.join(args.eval_dir, task)
             print('Calculating FID for %s...' % task)
-            fid_value = calculate_fid_given_paths(
+            fid_value, counts = calculate_fid_given_paths(
                 paths=[path_real, path_fake],
                 img_size=(args.img_height, args.img_width),
                 batch_size=args.val_batch_size)
-            fid_values['FID_%s/%s' % (mode, task)] = fid_value
+            n_real, n_fake = counts
+            key = 'FID_%s/%s' % (mode, task)
+            fid_values[key] = {
+                'value': fid_value,
+                'N_real': n_real,
+                'N_fake': n_fake
+            }
+            print('%s: %.4f (N_real=%d, N_fake=%d)' % (key, fid_value, n_real, n_fake))
 
     # calculate the average FID for all tasks
-    fid_mean = 0
-    for _, value in fid_values.items():
-        fid_mean += value / len(fid_values)
+    fid_mean = sum(v['value'] for v in fid_values.values()) / len(fid_values) if fid_values else 0
     fid_values['FID_%s/mean' % mode] = fid_mean
+    print('FID_%s/mean: %.4f' % (mode, fid_mean))
 
     # report FID values
     filename = os.path.join(args.eval_dir, 'FID_%.5i_%s.json' % (step, mode))

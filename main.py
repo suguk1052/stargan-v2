@@ -10,6 +10,7 @@ Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
 
 import os
 import argparse
+from datetime import datetime
 
 from munch import Munch
 from torch.backends import cudnn
@@ -154,22 +155,28 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=777,
                         help='Seed for random number generator')
 
+    # dataset and experiment directory
+    parser.add_argument('--dataset', type=str, default='celeba_hq',
+                        help='Name of the dataset, e.g., celeba_hq or afhq')
+    parser.add_argument('--expr_dir', type=str, default=None,
+                        help='Root directory for saving experiments')
+
     # directory for training
-    parser.add_argument('--train_img_dir', type=str, default='data/celeba_hq/train',
+    parser.add_argument('--train_img_dir', type=str, default=None,
                         help='Directory containing training images')
-    parser.add_argument('--val_img_dir', type=str, default='data/celeba_hq/val',
+    parser.add_argument('--val_img_dir', type=str, default=None,
                         help='Directory containing validation images')
-    parser.add_argument('--sample_dir', type=str, default='expr/samples',
+    parser.add_argument('--sample_dir', type=str, default=None,
                         help='Directory for saving generated images')
-    parser.add_argument('--checkpoint_dir', type=str, default='expr/checkpoints',
+    parser.add_argument('--checkpoint_dir', type=str, default=None,
                         help='Directory for saving network checkpoints')
 
     # directory for calculating metrics
-    parser.add_argument('--eval_dir', type=str, default='expr/eval',
+    parser.add_argument('--eval_dir', type=str, default=None,
                         help='Directory for saving metrics, i.e., FID and LPIPS')
 
     # directory for testing
-    parser.add_argument('--result_dir', type=str, default='expr/results',
+    parser.add_argument('--result_dir', type=str, default=None,
                         help='Directory for saving generated images and videos')
     parser.add_argument('--src_dir', type=str, default='assets/representative/celeba_hq/src',
                         help='Directory containing input source images')
@@ -188,9 +195,27 @@ if __name__ == '__main__':
     parser.add_argument('--print_every', type=int, default=10)
     parser.add_argument('--sample_every', type=int, default=5000)
     parser.add_argument('--save_every', type=int, default=10000)
-    parser.add_argument('--eval_every', type=int, default=50000)
+    parser.add_argument('--eval_every', type=int, default=100000)
 
     args = parser.parse_args()
+
+    # set default directories based on dataset and experiment timestamp
+    if args.train_img_dir is None:
+        args.train_img_dir = os.path.join('data', args.dataset, 'train')
+    if args.val_img_dir is None:
+        args.val_img_dir = os.path.join('data', args.dataset, 'val')
+
+    timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+    if args.expr_dir is None:
+        args.expr_dir = os.path.join('expr', f'{args.dataset}_{timestamp}')
+    if args.sample_dir is None:
+        args.sample_dir = os.path.join(args.expr_dir, 'samples')
+    if args.checkpoint_dir is None:
+        args.checkpoint_dir = os.path.join(args.expr_dir, 'checkpoints')
+    if args.eval_dir is None:
+        args.eval_dir = os.path.join(args.expr_dir, 'eval')
+    if args.result_dir is None:
+        args.result_dir = os.path.join(args.expr_dir, 'results')
 
     def _round16(x):
         return int(round(x / 16) * 16)
