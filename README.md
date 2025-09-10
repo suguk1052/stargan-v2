@@ -111,6 +111,9 @@ python main.py --mode eval --dataset afhq --num_domains 3 --w_hpf 0 \
                --expr_dir expr/afhq_experiment --resume_iter 100000
 ```
 
+LPIPS requires at least two outputs per source image. If `--num_outs_per_domain < 2`,
+LPIPS is skipped and only FID is reported.
+
 Note that the evaluation metrics are calculated using random latent vectors or reference images, both of which are selected by the [seed number](https://github.com/clovaai/stargan-v2/blob/master/main.py#L35). In the paper, we reported the average of values from 10 measurements using different seed numbers. The following table shows the calculated values for both latent-guided and reference-guided synthesis.
 
 | Dataset <img width=50/> | <img width=15/> FID (latent) <img width=15/>  | <img width=10/> LPIPS (latent) <img width=10/> | <img width=5/> FID (reference) <img width=5/> | LPIPS (reference) | <img width=10/> Elapsed time <img width=10/>  |

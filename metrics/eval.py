@@ -32,6 +32,10 @@ def calculate_metrics(nets, args, step, mode):
     num_domains = len(domains)
     print('Number of domains: %d' % num_domains)
 
+    skip_lpips = args.num_outs_per_domain < 2
+    if skip_lpips:
+        print('Skipping LPIPS because num_outs_per_domain < 2')
+
     lpips_dict = OrderedDict()
     for trg_idx, trg_domain in enumerate(domains):
         src_domains = [x for x in domains if x != trg_domain]
@@ -56,7 +60,11 @@ def calculate_metrics(nets, args, step, mode):
             os.makedirs(path_fake, exist_ok=True)
 
             lpips_values = []
-            print('Generating images and calculating LPIPS for %s...' % task)
+            if skip_lpips:
+                print('Generating images for %s (LPIPS skipped)...' % task)
+            else:
+                print('Generating images and calculating LPIPS for %s...' % task)
+
             for i, x_src in enumerate(tqdm(loader_src, total=len(loader_src))):
                 N = x_src.size(0)
                 x_src = x_src.to(device)
@@ -90,11 +98,15 @@ def calculate_metrics(nets, args, step, mode):
                             '%.4i_%.2i.png' % (i*args.val_batch_size+(k+1), j+1))
                         utils.save_image(x_fake[k], ncol=1, filename=filename)
 
-                lpips_value = calculate_lpips_given_images(group_of_images)
-                lpips_values.append(lpips_value)
+                if not skip_lpips:
+                    lpips_value = calculate_lpips_given_images(group_of_images)
+                    lpips_values.append(lpips_value)
 
             # calculate LPIPS for each task (e.g. cat2dog, dog2cat)
-            lpips_mean = np.array(lpips_values).mean()
+            if not skip_lpips and lpips_values:
+                lpips_mean = np.array(lpips_values).mean()
+            else:
+                lpips_mean = None
             lpips_dict['LPIPS_%s/%s' % (mode, task)] = lpips_mean
 
         # delete dataloaders
@@ -104,10 +116,13 @@ def calculate_metrics(nets, args, step, mode):
             del iter_ref
 
     # calculate the average LPIPS for all tasks
-    lpips_mean = 0
-    for _, value in lpips_dict.items():
-        lpips_mean += value / len(lpips_dict)
+    valid_lpips = [v for v in lpips_dict.values() if v is not None]
+    lpips_mean = sum(valid_lpips) / len(valid_lpips) if valid_lpips else None
     lpips_dict['LPIPS_%s/mean' % mode] = lpips_mean
+    if lpips_mean is None:
+        print('LPIPS_%s/mean: skipped' % mode)
+    else:
+        print('LPIPS_%s/mean: %.4f' % (mode, lpips_mean))
 
     # report LPIPS values
     filename = os.path.join(args.eval_dir, 'LPIPS_%.5i_%s.json' % (step, mode))
