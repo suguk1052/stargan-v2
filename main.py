@@ -27,7 +27,7 @@ def str2bool(v):
 
 def subdirs(dname):
     return [d for d in os.listdir(dname)
-            if os.path.isdir(os.path.join(dname, d))]
+            if os.path.isdir(os.path.join(dname, d)) and not d.endswith('_mask')]
 
 
 def main(args):
@@ -45,18 +45,21 @@ def main(args):
                                              img_size=(args.img_height, args.img_width),
                                              batch_size=args.batch_size,
                                              prob=args.randcrop_prob,
-                                             num_workers=args.num_workers),
+                                             num_workers=args.num_workers,
+                                             use_mask=args.use_mask),
                         ref=get_train_loader(root=args.train_img_dir,
                                              which='reference',
                                              img_size=(args.img_height, args.img_width),
                                              batch_size=args.batch_size,
                                              prob=args.randcrop_prob,
-                                             num_workers=args.num_workers),
+                                             num_workers=args.num_workers,
+                                             use_mask=args.use_mask),
                         val=get_test_loader(root=args.val_img_dir,
                                             img_size=(args.img_height, args.img_width),
                                             batch_size=args.val_batch_size,
                                             shuffle=True,
-                                            num_workers=args.num_workers))
+                                            num_workers=args.num_workers,
+                                            use_mask=args.use_mask))
         solver.train(loaders)
     elif args.mode == 'sample':
         assert len(subdirs(args.src_dir)) == args.num_domains
@@ -65,12 +68,14 @@ def main(args):
                                             img_size=(args.img_height, args.img_width),
                                             batch_size=args.val_batch_size,
                                             shuffle=False,
-                                            num_workers=args.num_workers),
+                                            num_workers=args.num_workers,
+                                            use_mask=args.use_mask),
                        ref=get_test_loader(root=args.ref_dir,
                                             img_size=(args.img_height, args.img_width),
                                             batch_size=args.val_batch_size,
                                             shuffle=False,
-                                            num_workers=args.num_workers))
+                                            num_workers=args.num_workers,
+                                            use_mask=args.use_mask))
         solver.sample(loaders)
 
     elif args.mode == 'latent_sample':
@@ -79,7 +84,8 @@ def main(args):
                                             img_size=(args.img_height, args.img_width),
                                             batch_size=args.val_batch_size,
                                             shuffle=False,
-                                            num_workers=args.num_workers))
+                                            num_workers=args.num_workers,
+                                            use_mask=args.use_mask))
         solver.sample_with_latent(loaders)
 
     elif args.mode == 'eval':
@@ -107,6 +113,8 @@ if __name__ == '__main__':
                         help='Hidden dimension of mapping network')
     parser.add_argument('--style_dim', type=int, default=64,
                         help='Style code dimension')
+    parser.add_argument('--use_mask', action='store_true',
+                        help='Use paired binary masks as an additional input channel')
 
     # weight for objective functions
     parser.add_argument('--lambda_reg', type=float, default=1,

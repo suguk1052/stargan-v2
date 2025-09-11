@@ -27,7 +27,8 @@ def calculate_metrics(nets, args, step, mode):
     assert mode in ['latent', 'reference']
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    domains = os.listdir(args.val_img_dir)
+    domains = [d for d in os.listdir(args.val_img_dir)
+               if os.path.isdir(os.path.join(args.val_img_dir, d)) and not d.endswith('_mask')]
     domains.sort()
     num_domains = len(domains)
     print('Number of domains: %d' % num_domains)
@@ -46,14 +47,16 @@ def calculate_metrics(nets, args, step, mode):
                                          img_size=(args.img_height, args.img_width),
                                          batch_size=args.val_batch_size,
                                          imagenet_normalize=False,
-                                         drop_last=True)
+                                         drop_last=True,
+                                         use_mask=args.use_mask)
 
         for src_idx, src_domain in enumerate(src_domains):
             path_src = os.path.join(args.val_img_dir, src_domain)
             loader_src = get_eval_loader(root=path_src,
                                          img_size=(args.img_height, args.img_width),
                                          batch_size=args.val_batch_size,
-                                         imagenet_normalize=False)
+                                         imagenet_normalize=False,
+                                         use_mask=args.use_mask)
 
             task = '%s2%s' % (src_domain, trg_domain)
             path_fake = os.path.join(args.eval_dir, mode, task)
@@ -92,7 +95,7 @@ def calculate_metrics(nets, args, step, mode):
                         if x_ref.size(0) > N:
                             x_ref = x_ref[:N]
                             m_ref = m_ref[:N]
-                        s_fg, s_bg = nets.style_encoder(x_ref, y_trg, m_ref)
+                        s_fg, s_bg = nets.style_encoder(x_ref, y_trg, m_ref if args.use_mask else None)
 
                     x_fake = nets.generator(x_src, s_fg, seg=m_src, s_bg=s_bg, masks=masks)
                     group_of_images.append(x_fake)

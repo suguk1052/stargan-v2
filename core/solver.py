@@ -99,9 +99,12 @@ class Solver(nn.Module):
         for i in range(args.resume_iter, args.total_iters):
             # fetch images and labels
             inputs = next(fetcher)
-            x_real, m_real, y_org = inputs.x_src, inputs.m_src, inputs.y_src
-            x_ref, m_ref = inputs.x_ref, inputs.m_ref
-            x_ref2, m_ref2 = inputs.x_ref2, inputs.m_ref2
+            x_real, y_org = inputs.x_src, inputs.y_src
+            m_real = inputs.m_src if args.use_mask else None
+            x_ref = inputs.x_ref
+            m_ref = inputs.m_ref if args.use_mask else None
+            x_ref2 = inputs.x_ref2
+            m_ref2 = inputs.m_ref2 if args.use_mask else None
             y_trg = inputs.y_ref
             z_trg, z_trg2 = inputs.z_trg, inputs.z_trg2
 
@@ -131,7 +134,8 @@ class Solver(nn.Module):
             optims.style_encoder.step()
 
             g_loss, g_losses_ref = compute_g_loss(
-                nets, args, x_real, m_real, y_org, y_trg, x_refs=[x_ref, x_ref2], m_refs=[m_ref, m_ref2], masks=masks)
+                nets, args, x_real, m_real, y_org, y_trg, x_refs=[x_ref, x_ref2],
+                m_refs=[m_ref, m_ref2] if args.use_mask else None, masks=masks)
             self._reset_grad()
             g_loss.backward()
             optims.generator.step()
@@ -189,7 +193,7 @@ class Solver(nn.Module):
 
         fname = ospj(args.result_dir, 'video_ref.mp4')
         print('Working on {}...'.format(fname))
-        utils.video_ref(nets_ema, args, src.x, ref.x, ref.y, fname)
+        utils.video_ref(nets_ema, args, src.x, ref.x, ref.y, fname, m_ref=ref.m if args.use_mask else None)
 
     @torch.no_grad()
     def sample_with_latent(self, loaders):
@@ -254,7 +258,10 @@ def compute_g_loss(nets, args, x_real, m_real, y_org, y_trg, z_trgs=None, x_refs
         z_trg, z_trg2 = z_trgs
     if x_refs is not None:
         x_ref, x_ref2 = x_refs
-        m_ref, m_ref2 = m_refs
+        if m_refs is not None:
+            m_ref, m_ref2 = m_refs
+        else:
+            m_ref = m_ref2 = None
 
     if z_trgs is not None:
         s_trg = nets.mapping_network(z_trg, y_trg)

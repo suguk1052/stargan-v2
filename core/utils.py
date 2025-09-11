@@ -62,11 +62,11 @@ def save_image(x, ncol, filename):
 @torch.no_grad()
 def translate_and_reconstruct(nets, args, x_src, m_src, y_src, x_ref, m_ref, y_ref, filename):
     N, C, H, W = x_src.size()
-    s_ref_fg, s_ref_bg = nets.style_encoder(x_ref, y_ref, m_ref)
+    s_ref_fg, s_ref_bg = nets.style_encoder(x_ref, y_ref, m_ref if args.use_mask else None)
     masks = None
 
     x_fake = nets.generator(x_src, s_ref_fg, seg=m_src, s_bg=s_ref_bg, masks=masks)
-    s_src_fg, s_src_bg = nets.style_encoder(x_src, y_src, m_src)
+    s_src_fg, s_src_bg = nets.style_encoder(x_src, y_src, m_src if args.use_mask else None)
     masks = None
 
     x_rec = nets.generator(x_fake, s_src_fg, seg=m_src, s_bg=s_src_bg, masks=masks)
@@ -108,7 +108,7 @@ def translate_using_reference(nets, args, x_src, m_src, x_ref, m_ref, y_ref, fil
 
     masks = None
 
-    s_ref_fg, s_ref_bg = nets.style_encoder(x_ref, y_ref, m_ref)
+    s_ref_fg, s_ref_bg = nets.style_encoder(x_ref, y_ref, m_ref if args.use_mask else None)
     s_ref_list_fg = s_ref_fg.unsqueeze(1).repeat(1, N, 1)
     s_ref_list_bg = s_ref_bg.unsqueeze(1).repeat(1, N, 1)
     x_concat = [x_src_with_wb]
@@ -200,9 +200,9 @@ def slide(entries, margin=32):
 
 
 @torch.no_grad()
-def video_ref(nets, args, x_src, x_ref, y_ref, fname):
+def video_ref(nets, args, x_src, x_ref, y_ref, fname, m_ref=None):
     video = []
-    s_ref = nets.style_encoder(x_ref, y_ref)
+    s_ref, _ = nets.style_encoder(x_ref, y_ref, m_ref if m_ref is not None and args.use_mask else None)
     s_prev = None
     for data_next in tqdm(zip(x_ref, y_ref, s_ref), 'video_ref', len(x_ref)):
         x_next, y_next, s_next = [d.unsqueeze(0) for d in data_next]

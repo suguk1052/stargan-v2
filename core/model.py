@@ -278,6 +278,17 @@ class StyleEncoder(nn.Module):
     def forward(self, x, y, mask=None):
         if mask is None:
             mask = torch.ones(x.size(0), 1, x.size(2), x.size(3), device=x.device)
+            x_in = torch.cat([x, mask], dim=1)
+            h = self.shared(x_in)
+            h = self.conv(self.pool(h))
+            h = self.act(h).view(h.size(0), -1)
+            out = []
+            for layer_fg in self.unshared_fg:
+                out += [layer_fg(h)]
+            out = torch.stack(out, dim=1)
+            idx = torch.arange(y.size(0)).to(y.device)
+            s = out[idx, y]
+            return s, s
         mask = smooth_mask(mask)
         x_in = torch.cat([x, mask], dim=1)
         h = self.shared(x_in)
