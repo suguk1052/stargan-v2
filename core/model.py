@@ -20,6 +20,19 @@ import torch.nn.functional as F
 from core.wing import FAN
 
 
+def smooth_mask(mask, kernel_size=21, sigma=5):
+    if kernel_size <= 1:
+        return mask
+    device = mask.device
+    coords = torch.arange(kernel_size, device=device).float() - (kernel_size - 1) / 2
+    g = torch.exp(-(coords ** 2) / (2 * sigma ** 2))
+    g = g / g.sum()
+    kernel = g[:, None] * g[None, :]
+    kernel = kernel / kernel.sum()
+    kernel = kernel.view(1, 1, kernel_size, kernel_size)
+    return F.conv2d(mask, kernel, padding=kernel_size // 2)
+
+
 class ResBlk(nn.Module):
     def __init__(self, dim_in, dim_out, actv=nn.LeakyReLU(0.2),
                  normalize=False, downsample=False):
@@ -102,19 +115,27 @@ class AdainResBlk(nn.Module):
             x = self.conv1x1(x)
         return x
 
-    def _residual(self, x, s):
-        x = self.norm1(x, s)
-        x = self.actv(x)
+    def _residual(self, x, s_fg, s_bg, mask):
+        x_fg = self.norm1(x, s_fg)
+        x_bg = self.norm1(x, s_bg)
+        x_fg = self.actv(x_fg)
+        x_bg = self.actv(x_bg)
         if self.upsample:
-            x = F.interpolate(x, scale_factor=2, mode='nearest')
-        x = self.conv1(x)
-        x = self.norm2(x, s)
-        x = self.actv(x)
-        x = self.conv2(x)
-        return x
+            x_fg = F.interpolate(x_fg, scale_factor=2, mode='nearest')
+            x_bg = F.interpolate(x_bg, scale_factor=2, mode='nearest')
+            mask = F.interpolate(mask, scale_factor=2, mode='nearest')
+        x_fg = self.conv1(x_fg)
+        x_bg = self.conv1(x_bg)
+        x_fg = self.norm2(x_fg, s_fg)
+        x_bg = self.norm2(x_bg, s_bg)
+        x_fg = self.actv(x_fg)
+        x_bg = self.actv(x_bg)
+        x_fg = self.conv2(x_fg)
+        x_bg = self.conv2(x_bg)
+        return x_fg * mask + x_bg * (1 - mask)
 
-    def forward(self, x, s):
-        out = self._residual(x, s)
+    def forward(self, x, s_fg, s_bg, mask):
+        out = self._residual(x, s_fg, s_bg, mask)
         if self.w_hpf == 0:
             out = (out + self._shortcut(x)) / math.sqrt(2)
         return out
@@ -140,7 +161,7 @@ class Generator(nn.Module):
         dim_in = 2**14 // img_size
         self.img_height = img_height
         self.img_width = img_width
-        self.from_rgb = nn.Conv2d(3, dim_in, 3, 1, 1)
+        self.from_rgb = nn.Conv2d(4, dim_in, 3, 1, 1)
         self.encode = nn.ModuleList()
         self.decode = nn.ModuleList()
         self.to_rgb = nn.Sequential(
@@ -173,7 +194,13 @@ class Generator(nn.Module):
                 'cuda' if torch.cuda.is_available() else 'cpu')
             self.hpf = HighPass(w_hpf, device)
 
-    def forward(self, x, s, masks=None):
+    def forward(self, x, s_fg, seg=None, s_bg=None, masks=None):
+        if seg is None:
+            seg = torch.ones(x.size(0), 1, x.size(2), x.size(3), device=x.device)
+        if s_bg is None:
+            s_bg = s_fg
+        seg = smooth_mask(seg)
+        x = torch.cat([x, seg], dim=1)
         x = self.from_rgb(x)
         cache = {}
         for block in self.encode:
@@ -181,7 +208,8 @@ class Generator(nn.Module):
                 cache[x.size(2)] = x
             x = block(x)
         for block in self.decode:
-            x = block(x, s)
+            seg = F.interpolate(seg, size=x.size(2), mode='bilinear', align_corners=False)
+            x = block(x, s_fg, s_bg, seg)
             if (masks is not None) and (x.size(2) in [32, 64, 128]):
                 mask = masks[0] if x.size(2) in [32] else masks[1]
                 mask = F.interpolate(mask, size=x.size(2), mode='bilinear')
@@ -227,7 +255,7 @@ class StyleEncoder(nn.Module):
         img_size = min(img_height, img_width)
         dim_in = 2**14 // img_size
         blocks = []
-        blocks += [nn.Conv2d(3, dim_in, 3, 1, 1)]
+        blocks += [nn.Conv2d(4, dim_in, 3, 1, 1)]
 
         repeat_num = int(np.log2(img_size)) - 2
         for _ in range(repeat_num):
@@ -241,23 +269,35 @@ class StyleEncoder(nn.Module):
         self.conv = nn.Conv2d(dim_out, dim_out, 1, 1, 0)
         self.act = nn.LeakyReLU(0.2)
 
-        self.unshared = nn.ModuleList()
+        self.unshared_fg = nn.ModuleList()
+        self.unshared_bg = nn.ModuleList()
         for _ in range(num_domains):
-            self.unshared += [nn.Linear(dim_out, style_dim)]
+            self.unshared_fg += [nn.Linear(dim_out, style_dim)]
+            self.unshared_bg += [nn.Linear(dim_out, style_dim)]
 
-    def forward(self, x, y):
-        h = self.shared(x)
-        h = self.pool(h)
-        h = self.conv(h)
-        h = self.act(h)
-        h = h.view(h.size(0), -1)
-        out = []
-        for layer in self.unshared:
-            out += [layer(h)]
-        out = torch.stack(out, dim=1)  # (batch, num_domains, style_dim)
+    def forward(self, x, y, mask=None):
+        if mask is None:
+            mask = torch.ones(x.size(0), 1, x.size(2), x.size(3), device=x.device)
+        mask = smooth_mask(mask)
+        x_in = torch.cat([x, mask], dim=1)
+        h = self.shared(x_in)
+        mask = F.interpolate(mask, size=h.size(2), mode='bilinear', align_corners=False)
+        h_fg = h * mask
+        h_bg = h * (1 - mask)
+        h_fg = self.conv(self.pool(h_fg))
+        h_bg = self.conv(self.pool(h_bg))
+        h_fg = self.act(h_fg).view(h_fg.size(0), -1)
+        h_bg = self.act(h_bg).view(h_bg.size(0), -1)
+        out_fg, out_bg = [], []
+        for layer_fg, layer_bg in zip(self.unshared_fg, self.unshared_bg):
+            out_fg += [layer_fg(h_fg)]
+            out_bg += [layer_bg(h_bg)]
+        out_fg = torch.stack(out_fg, dim=1)
+        out_bg = torch.stack(out_bg, dim=1)
         idx = torch.arange(y.size(0)).to(y.device)
-        s = out[idx, y]  # (batch, style_dim)
-        return s
+        s_fg = out_fg[idx, y]
+        s_bg = out_bg[idx, y]
+        return s_fg, s_bg
 
 
 class Discriminator(nn.Module):

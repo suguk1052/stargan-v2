@@ -65,8 +65,8 @@ y = torch.LongTensor([0]).to(device)  # domain 0 기준
 # ---------------------
 # 3. StyleEncoder 다양성 확인
 # ---------------------
-s1 = nets_ema.style_encoder(ref1, y)
-s2 = nets_ema.style_encoder(ref2, y)
+s1, _ = nets_ema.style_encoder(ref1, y)
+s2, _ = nets_ema.style_encoder(ref2, y)
 dist = F.mse_loss(s1, s2).item()
 print(f"[StyleEncoder] distance(s1, s2) = {dist:.6f}")
 

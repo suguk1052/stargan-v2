@@ -24,6 +24,80 @@ from torchvision import transforms
 from torchvision.datasets import ImageFolder
 
 
+class ImageMaskFolder(ImageFolder):
+    def __init__(self, root, transform=None, mask_transform=None):
+        super().__init__(root, transform)
+        self.mask_transform = mask_transform
+
+    def __getitem__(self, index):
+        path, target = self.samples[index]
+        sample = Image.open(path).convert('RGB')
+
+        class_name = self.classes[target]
+        fname = os.path.basename(path)
+        mask_path = os.path.join(self.root, class_name + '_mask', fname)
+        mask = Image.open(mask_path).convert('L')
+
+        if self.transform is not None:
+            state = torch.get_rng_state()
+            sample = self.transform(sample)
+            torch.set_rng_state(state)
+            if self.mask_transform is not None:
+                mask = self.mask_transform(mask)
+            else:
+                mask = self.transform(mask)
+        return sample, mask, target
+
+
+class ReferenceMaskDataset(data.Dataset):
+    def __init__(self, root, transform=None, mask_transform=None):
+        self.samples, self.targets = self._make_dataset(root)
+        self.transform = transform
+        self.mask_transform = mask_transform
+        self.root = root
+
+    def _make_dataset(self, root):
+        domains = os.listdir(root)
+        fnames, fnames2, labels = [], [], []
+        for idx, domain in enumerate(sorted(domains)):
+            class_dir = os.path.join(root, domain)
+            cls_fnames = listdir(class_dir)
+            fnames += cls_fnames
+            fnames2 += random.sample(cls_fnames, len(cls_fnames))
+            labels += [idx] * len(cls_fnames)
+        return list(zip(fnames, fnames2)), labels
+
+    def __getitem__(self, index):
+        fname, fname2 = self.samples[index]
+        label = self.targets[index]
+
+        img = Image.open(fname).convert('RGB')
+        img2 = Image.open(fname2).convert('RGB')
+
+        domain = os.path.basename(os.path.dirname(fname))
+        root_dir = os.path.dirname(os.path.dirname(fname))
+        mask_path = os.path.join(root_dir, domain + '_mask', os.path.basename(fname))
+        mask2_path = os.path.join(root_dir, domain + '_mask', os.path.basename(fname2))
+        mask = Image.open(mask_path).convert('L')
+        mask2 = Image.open(mask2_path).convert('L')
+
+        if self.transform is not None:
+            state = torch.get_rng_state()
+            img = self.transform(img)
+            torch.set_rng_state(state)
+            mask = self.mask_transform(mask) if self.mask_transform is not None else self.transform(mask)
+
+            state = torch.get_rng_state()
+            img2 = self.transform(img2)
+            torch.set_rng_state(state)
+            mask2 = self.mask_transform(mask2) if self.mask_transform is not None else self.transform(mask2)
+
+        return img, mask, img2, mask2, label
+
+    def __len__(self):
+        return len(self.targets)
+
+
 def listdir(dname):
     fnames = list(chain(*[list(Path(dname).rglob('*.' + ext))
                           for ext in ['png', 'jpg', 'jpeg', 'JPG']]))
@@ -130,10 +204,17 @@ def get_train_loader(root, which='source', img_size=256,
                              std=[0.5, 0.5, 0.5]),
     ])
 
+    mask_transform = transforms.Compose([
+        rand_crop,
+        CenterCropResize((height, width)),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+    ])
+
     if which == 'source':
-        dataset = ImageFolder(root, transform)
+        dataset = ImageMaskFolder(root, transform, mask_transform)
     elif which == 'reference':
-        dataset = ReferenceDataset(root, transform)
+        dataset = ReferenceMaskDataset(root, transform, mask_transform)
     else:
         raise NotImplementedError
 
@@ -171,7 +252,13 @@ def get_eval_loader(root, img_size=256, batch_size=32,
         transforms.Normalize(mean=mean, std=std)
     ])
 
-    dataset = DefaultDataset(root, transform=transform)
+    mask_transform = transforms.Compose([
+        CenterCropResize((height, width)),
+        transforms.Resize([resize_h, resize_w]),
+        transforms.ToTensor(),
+    ])
+
+    dataset = ImageMaskFolder(root, transform=transform, mask_transform=mask_transform)
     return data.DataLoader(dataset=dataset,
                            batch_size=batch_size,
                            shuffle=shuffle,
@@ -195,7 +282,12 @@ def get_test_loader(root, img_size=256, batch_size=32,
                              std=[0.5, 0.5, 0.5]),
     ])
 
-    dataset = ImageFolder(root, transform)
+    mask_transform = transforms.Compose([
+        CenterCropResize((height, width)),
+        transforms.ToTensor(),
+    ])
+
+    dataset = ImageMaskFolder(root, transform, mask_transform)
     return data.DataLoader(dataset=dataset,
                            batch_size=batch_size,
                            shuffle=shuffle,
@@ -213,35 +305,36 @@ class InputFetcher:
 
     def _fetch_inputs(self):
         try:
-            x, y = next(self.iter)
+            x, m, y = next(self.iter)
         except (AttributeError, StopIteration):
             self.iter = iter(self.loader)
-            x, y = next(self.iter)
-        return x, y
+            x, m, y = next(self.iter)
+        return x, m, y
 
     def _fetch_refs(self):
         try:
-            x, x2, y = next(self.iter_ref)
+            x, m, x2, m2, y = next(self.iter_ref)
         except (AttributeError, StopIteration):
             self.iter_ref = iter(self.loader_ref)
-            x, x2, y = next(self.iter_ref)
-        return x, x2, y
+            x, m, x2, m2, y = next(self.iter_ref)
+        return x, m, x2, m2, y
 
     def __next__(self):
-        x, y = self._fetch_inputs()
+        x, m, y = self._fetch_inputs()
         if self.mode == 'train':
-            x_ref, x_ref2, y_ref = self._fetch_refs()
+            x_ref, m_ref, x_ref2, m_ref2, y_ref = self._fetch_refs()
             z_trg = torch.randn(x.size(0), self.latent_dim)
             z_trg2 = torch.randn(x.size(0), self.latent_dim)
-            inputs = Munch(x_src=x, y_src=y, y_ref=y_ref,
-                           x_ref=x_ref, x_ref2=x_ref2,
+            inputs = Munch(x_src=x, m_src=m, y_src=y, y_ref=y_ref,
+                           x_ref=x_ref, m_ref=m_ref,
+                           x_ref2=x_ref2, m_ref2=m_ref2,
                            z_trg=z_trg, z_trg2=z_trg2)
         elif self.mode == 'val':
-            x_ref, y_ref = self._fetch_inputs()
-            inputs = Munch(x_src=x, y_src=y,
-                           x_ref=x_ref, y_ref=y_ref)
+            x_ref, m_ref, y_ref = self._fetch_inputs()
+            inputs = Munch(x_src=x, m_src=m, y_src=y,
+                           x_ref=x_ref, m_ref=m_ref, y_ref=y_ref)
         elif self.mode == 'test':
-            inputs = Munch(x=x, y=y)
+            inputs = Munch(x=x, m=m, y=y)
         else:
             raise NotImplementedError
 
