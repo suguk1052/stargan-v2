@@ -237,14 +237,16 @@ class MappingNetwork(nn.Module):
                                             nn.Linear(512, 512),
                                             nn.ReLU(),
                                             nn.Linear(512, style_dim))]
+        self.num_domains = num_domains
 
     def forward(self, z, y):
+        y = torch.remainder(y, self.num_domains)
         h = self.shared(z)
         out = []
         for layer in self.unshared:
             out += [layer(h)]
         out = torch.stack(out, dim=1)  # (batch, num_domains, style_dim)
-        idx = torch.arange(y.size(0)).to(y.device)
+        idx = torch.arange(y.size(0), device=y.device)
         s = out[idx, y]  # (batch, style_dim)
         return s
 
@@ -274,8 +276,10 @@ class StyleEncoder(nn.Module):
         for _ in range(num_domains):
             self.unshared_fg += [nn.Linear(dim_out, style_dim)]
             self.unshared_bg += [nn.Linear(dim_out, style_dim)]
+        self.num_domains = num_domains
 
     def forward(self, x, y, mask=None):
+        y = torch.remainder(y, self.num_domains)
         if mask is None:
             mask = torch.ones(x.size(0), 1, x.size(2), x.size(3), device=x.device)
             x_in = torch.cat([x, mask], dim=1)
@@ -286,7 +290,7 @@ class StyleEncoder(nn.Module):
             for layer_fg in self.unshared_fg:
                 out += [layer_fg(h)]
             out = torch.stack(out, dim=1)
-            idx = torch.arange(y.size(0)).to(y.device)
+            idx = torch.arange(y.size(0), device=y.device)
             s = out[idx, y]
             return s, s
         mask = smooth_mask(mask)
@@ -305,7 +309,7 @@ class StyleEncoder(nn.Module):
             out_bg += [layer_bg(h_bg)]
         out_fg = torch.stack(out_fg, dim=1)
         out_bg = torch.stack(out_bg, dim=1)
-        idx = torch.arange(y.size(0)).to(y.device)
+        idx = torch.arange(y.size(0), device=y.device)
         s_fg = out_fg[idx, y]
         s_bg = out_bg[idx, y]
         return s_fg, s_bg
@@ -331,11 +335,13 @@ class Discriminator(nn.Module):
         blocks += [nn.LeakyReLU(0.2)]
         blocks += [nn.Conv2d(dim_out, num_domains, 1, 1, 0)]
         self.main = nn.Sequential(*blocks)
+        self.num_domains = num_domains
 
     def forward(self, x, y):
+        y = torch.remainder(y, self.num_domains)
         out = self.main(x)
         out = out.view(out.size(0), -1)  # (batch, num_domains)
-        idx = torch.arange(y.size(0)).to(y.device)
+        idx = torch.arange(y.size(0), device=y.device)
         out = out[idx, y]  # (batch)
         return out
 
