@@ -116,6 +116,17 @@ class AdainResBlk(nn.Module):
         return x
 
     def _residual(self, x, s_fg, s_bg, mask):
+        if mask is None:
+            h = self.norm1(x, s_fg)
+            h = self.actv(h)
+            if self.upsample:
+                h = F.interpolate(h, scale_factor=2, mode='nearest')
+            h = self.conv1(h)
+            h = self.norm2(h, s_fg)
+            h = self.actv(h)
+            h = self.conv2(h)
+            return h
+
         x_fg = self.norm1(x, s_fg)
         x_bg = self.norm1(x, s_bg)
         x_fg = self.actv(x_fg)
@@ -134,7 +145,7 @@ class AdainResBlk(nn.Module):
         x_bg = self.conv2(x_bg)
         return x_fg * mask + x_bg * (1 - mask)
 
-    def forward(self, x, s_fg, s_bg, mask):
+    def forward(self, x, s_fg, s_bg=None, mask=None):
         out = self._residual(x, s_fg, s_bg, mask)
         if self.w_hpf == 0:
             out = (out + self._shortcut(x)) / math.sqrt(2)
@@ -198,13 +209,27 @@ class Generator(nn.Module):
             self.hpf = HighPass(w_hpf, device)
 
     def forward(self, x, s_fg, seg=None, s_bg=None, masks=None):
+        if not self.use_mask:
+            x = self.from_rgb(x)
+            cache = {}
+            for block in self.encode:
+                if (masks is not None) and (x.size(2) in [32, 64, 128]):
+                    cache[x.size(2)] = x
+                x = block(x)
+            for block in self.decode:
+                x = block(x, s_fg, None, None)
+                if (masks is not None) and (x.size(2) in [32, 64, 128]):
+                    mask = masks[0] if x.size(2) in [32] else masks[1]
+                    mask = F.interpolate(mask, size=x.size(2), mode='bilinear')
+                    x = x + self.hpf(mask * cache[x.size(2)])
+            return self.to_rgb(x)
+
         if seg is None:
             seg = torch.ones(x.size(0), 1, x.size(2), x.size(3), device=x.device)
         if s_bg is None:
             s_bg = s_fg
         seg = smooth_mask(seg)
-        if self.use_mask:
-            x = torch.cat([x, seg], dim=1)
+        x = torch.cat([x, seg], dim=1)
         x = self.from_rgb(x)
         cache = {}
         for block in self.encode:

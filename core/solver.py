@@ -242,7 +242,10 @@ def compute_d_loss(nets, args, x_real, m_real, y_org, y_trg, z_trg=None, x_ref=N
         else:
             s_fg, s_bg = nets.style_encoder(x_ref, y_trg, m_ref)
 
-        x_fake = nets.generator(x_real, s_fg, seg=m_real, s_bg=s_bg, masks=masks)
+        if args.use_mask:
+            x_fake = nets.generator(x_real, s_fg, seg=m_real, s_bg=s_bg, masks=masks)
+        else:
+            x_fake = nets.generator(x_real, s_fg)
     out = nets.discriminator(x_fake, y_trg)
     loss_fake = adv_loss(out, 0)
 
@@ -269,11 +272,14 @@ def compute_g_loss(nets, args, x_real, m_real, y_org, y_trg, z_trgs=None, x_refs
     else:
         s_fg, s_bg = nets.style_encoder(x_ref, y_trg, m_ref)
 
-    x_fake = nets.generator(x_real, s_fg, seg=m_real, s_bg=s_bg, masks=masks)
+    if args.use_mask:
+        x_fake = nets.generator(x_real, s_fg, seg=m_real, s_bg=s_bg, masks=masks)
+    else:
+        x_fake = nets.generator(x_real, s_fg)
     out = nets.discriminator(x_fake, y_trg)
     loss_adv = adv_loss(out, 1)
 
-    s_pred_fg, s_pred_bg = nets.style_encoder(x_fake, y_trg, m_real)
+    s_pred_fg, s_pred_bg = nets.style_encoder(x_fake, y_trg, m_real if args.use_mask else None)
     loss_sty = torch.mean(torch.abs(s_pred_fg - s_fg) + torch.abs(s_pred_bg - s_bg))
 
     if z_trgs is not None:
@@ -281,14 +287,20 @@ def compute_g_loss(nets, args, x_real, m_real, y_org, y_trg, z_trgs=None, x_refs
         s_fg2, s_bg2 = s_trg2, s_trg2
     else:
         s_fg2, s_bg2 = nets.style_encoder(x_ref2, y_trg, m_ref2)
-    x_fake2 = nets.generator(x_real, s_fg2, seg=m_real, s_bg=s_bg2, masks=masks)
+    if args.use_mask:
+        x_fake2 = nets.generator(x_real, s_fg2, seg=m_real, s_bg=s_bg2, masks=masks)
+    else:
+        x_fake2 = nets.generator(x_real, s_fg2)
     x_fake2 = x_fake2.detach()
     loss_ds = torch.mean(torch.abs(x_fake - x_fake2))
 
     masks = None
 
-    s_org_fg, s_org_bg = nets.style_encoder(x_real, y_org, m_real)
-    x_rec = nets.generator(x_fake, s_org_fg, seg=m_real, s_bg=s_org_bg, masks=masks)
+    s_org_fg, s_org_bg = nets.style_encoder(x_real, y_org, m_real if args.use_mask else None)
+    if args.use_mask:
+        x_rec = nets.generator(x_fake, s_org_fg, seg=m_real, s_bg=s_org_bg, masks=masks)
+    else:
+        x_rec = nets.generator(x_fake, s_org_fg)
     loss_cyc = torch.mean(torch.abs(x_rec - x_real))
 
     loss = loss_adv + args.lambda_sty * loss_sty \
