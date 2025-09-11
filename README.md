@@ -28,6 +28,15 @@ This repository adds flexible image resolution handling:
 - Input images are center-cropped and resized to preserve their original aspect ratio.
 - Generator, style encoder, and discriminator now operate on rectangular resolutions end-to-end.
 
+## Mask-guided foreground and background styling
+This fork accepts binary masks that separate foreground objects from the background so that styles can be encoded and applied independently.
+
+- For each domain directory `A`, add a matching `A_mask` directory containing single-channel binary masks with identical filenames.
+- During training or sampling, the loader automatically pairs `image.png` with `A_mask/image.png` and feeds the mask as a fourth channel.
+- The style encoder outputs foreground (`s_fg`) and background (`s_bg`) style codes, and the generator blends them using a blurred version of the mask to avoid hard edges.
+
+With masks present, the model learns separate appearances for object and background while keeping the overall image coherent.
+
 ## Software installation
 Clone this repository:
 
