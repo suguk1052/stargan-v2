@@ -28,6 +28,12 @@ class ImageMaskFolder(ImageFolder):
     def __init__(self, root, transform=None, mask_transform=None, use_mask=True):
         self.use_mask = use_mask
         super().__init__(root, transform)
+        # remove any samples that might live in *_mask folders or contain
+        # "_mask" in their filename so that masks are never treated as
+        # standalone images
+        self.samples = [(p, t) for p, t in self.samples
+                        if '_mask' not in os.path.relpath(p, root)]
+        self.imgs = self.samples
         self.mask_transform = mask_transform
 
     def find_classes(self, directory):
@@ -130,6 +136,7 @@ class ReferenceMaskDataset(data.Dataset):
 def listdir(dname):
     fnames = list(chain(*[list(Path(dname).rglob('*.' + ext))
                           for ext in ['png', 'jpg', 'jpeg', 'JPG']]))
+    fnames = [f for f in fnames if '_mask' not in str(f)]
     return fnames
 
 # Center-crop to match the target aspect ratio, then resize
