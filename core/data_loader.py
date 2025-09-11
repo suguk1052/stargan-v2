@@ -334,8 +334,10 @@ class InputFetcher:
 
     def __next__(self):
         x, m, y = self._fetch_inputs()
+        y = y.view(-1).long()
         if self.mode == 'train':
             x_ref, m_ref, x_ref2, m_ref2, y_ref = self._fetch_refs()
+            y_ref = y_ref.view(-1).long()
             z_trg = torch.randn(x.size(0), self.latent_dim)
             z_trg2 = torch.randn(x.size(0), self.latent_dim)
             inputs = Munch(x_src=x, m_src=m, y_src=y, y_ref=y_ref,
@@ -344,6 +346,7 @@ class InputFetcher:
                            z_trg=z_trg, z_trg2=z_trg2)
         elif self.mode == 'val':
             x_ref, m_ref, y_ref = self._fetch_inputs()
+            y_ref = y_ref.view(-1).long()
             inputs = Munch(x_src=x, m_src=m, y_src=y,
                            x_ref=x_ref, m_ref=m_ref, y_ref=y_ref)
         elif self.mode == 'test':
