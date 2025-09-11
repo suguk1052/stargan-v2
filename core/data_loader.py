@@ -32,12 +32,25 @@ class ImageMaskFolder(ImageFolder):
         # treating masks as standalone images. This is especially important
         # for validation and sampling loaders where `_mask` folders may live
         # alongside real domain folders.
-        self.samples = [
+        valid = [
             (p, t) for p, t in self.samples
             if '_mask' not in Path(p).parts
         ]
+
+        # Rebuild class indices so that mask folders never appear as
+        # standalone classes. Without this step, the original indices
+        # assigned by ``ImageFolder`` can leave gaps (e.g., class IDs 0 and 2)
+        # and cause ``class_name`` lookups to return ``<domain>_mask``.
+        idx_to_class = {v: k for k, v in self.class_to_idx.items()}
+        classes = [idx_to_class[t] for _, t in valid]
+        classes = sorted({c for c in classes if not c.endswith('_mask')})
+        class_to_idx = {c: i for i, c in enumerate(classes)}
+
+        self.samples = [(p, class_to_idx[idx_to_class[t]]) for p, t in valid]
         self.imgs = self.samples
         self.targets = [t for _, t in self.samples]
+        self.classes = classes
+        self.class_to_idx = class_to_idx
         self.mask_transform = mask_transform
 
     def find_classes(self, directory):
@@ -54,7 +67,8 @@ class ImageMaskFolder(ImageFolder):
         if self.use_mask:
             class_name = self.classes[target]
             fname = os.path.basename(path)
-            mask_path = os.path.join(self.root, class_name + '_mask', fname)
+            mask_dir = class_name if class_name.endswith('_mask') else class_name + '_mask'
+            mask_path = os.path.join(self.root, mask_dir, fname)
             mask = Image.open(mask_path).convert('L')
 
         if self.transform is not None:
@@ -182,7 +196,8 @@ class DefaultDataset(data.Dataset):
         if self.use_mask:
             domain = os.path.basename(self.root)
             root_dir = os.path.dirname(self.root)
-            mask_path = os.path.join(root_dir, domain + '_mask', os.path.basename(fname))
+            mask_dir = domain if domain.endswith('_mask') else domain + '_mask'
+            mask_path = os.path.join(root_dir, mask_dir, os.path.basename(fname))
             mask = Image.open(mask_path).convert('L')
             if self.mask_transform is not None:
                 mask = self.mask_transform(mask)
