@@ -31,9 +31,13 @@ This repository adds flexible image resolution handling:
 ## Mask-guided foreground and background styling
 This fork accepts binary masks that separate foreground objects from the background so that styles can be encoded and applied independently.
 
-- For each domain directory `A`, add a matching `A_mask` directory containing single-channel binary masks with identical filenames.
+- For each domain directory `A` under `train/` **and** `val/`, add a matching
+  `A_mask` directory containing single-channel binary masks with identical
+  filenames.
 - During training or sampling, the loader automatically pairs `image.png` with `A_mask/image.png` and feeds the mask as a fourth channel.
-- Mask directories and files are ignored as standalone images, so they never count toward `num_domains` or appear as `src`/`ref` samples.
+- Mask directories and files are ignored as standalone images in both training
+  and validation sets, so they never count toward `num_domains` or appear as
+  `src`/`ref` samples.
 - The style encoder outputs foreground (`s_fg`) and background (`s_bg`) style codes, and the generator blends them using a blurred version of the mask to avoid hard edges.
 
 Enable this behavior with `--use_mask`. Without the flag, the network falls back to the original 3-channel formulation.

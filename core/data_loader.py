@@ -28,7 +28,16 @@ class ImageMaskFolder(ImageFolder):
     def __init__(self, root, transform=None, mask_transform=None, use_mask=True):
         self.use_mask = use_mask
         super().__init__(root, transform)
+        # Filter out any files residing in *_mask directories to avoid
+        # treating masks as standalone images. This is especially important
+        # for validation and sampling loaders where `_mask` folders may live
+        # alongside real domain folders.
+        self.samples = [
+            (p, t) for p, t in self.samples
+            if '_mask' not in Path(p).parts
+        ]
         self.imgs = self.samples
+        self.targets = [t for _, t in self.samples]
         self.mask_transform = mask_transform
 
     def find_classes(self, directory):

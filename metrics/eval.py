@@ -28,7 +28,8 @@ def calculate_metrics(nets, args, step, mode):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     domains = [d for d in os.listdir(args.val_img_dir)
-               if os.path.isdir(os.path.join(args.val_img_dir, d)) and not d.endswith('_mask')]
+               if os.path.isdir(os.path.join(args.val_img_dir, d))
+               and not d.endswith('_mask') and not d.startswith('.')]
     domains.sort()
     num_domains = len(domains)
     print('Number of domains: %d' % num_domains)
