@@ -34,7 +34,7 @@ class ImageMaskFolder(ImageFolder):
         # alongside real domain folders.
         valid = [
             (p, t) for p, t in self.samples
-            if '_mask' not in Path(p).parts
+            if not any(part.endswith('_mask') for part in Path(p).parts)
         ]
 
         # Rebuild class indices so that mask folders never appear as

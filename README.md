@@ -37,7 +37,8 @@ This fork accepts binary masks that separate foreground objects from the backgro
 - During training or sampling, the loader automatically pairs `image.png` with `A_mask/image.png` and feeds the mask as a fourth channel.
 - Mask directories and files are ignored as standalone images in both training
   and validation sets, so they never count toward `num_domains` or appear as
-  `src`/`ref` samples.
+  `src`/`ref` samples. Set `--num_domains` to the number of real domain folders
+  (e.g., `A`, `B`).
 - The style encoder outputs foreground (`s_fg`) and background (`s_bg`) style codes, and the generator blends them using a blurred version of the mask to avoid hard edges.
 
 Enable this behavior with `--use_mask`. Without the flag, the network falls back to the original 3-channel formulation, and pretrained checkpoints from the official release continue to load without modification.
