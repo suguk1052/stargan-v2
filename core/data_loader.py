@@ -32,7 +32,7 @@ class ImageMaskFolder(ImageFolder):
 
     def find_classes(self, directory):
         classes = [d.name for d in os.scandir(directory)
-                   if d.is_dir() and not d.name.endswith('_mask')]
+                   if d.is_dir() and not d.name.endswith('_mask') and not d.name.startswith('.')]
         classes.sort()
         class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
         return classes, class_to_idx
@@ -70,7 +70,9 @@ class ReferenceMaskDataset(data.Dataset):
         self.root = root
 
     def _make_dataset(self, root):
-        domains = [d for d in os.listdir(root) if not d.endswith('_mask')]
+        domains = [d for d in os.listdir(root)
+                   if os.path.isdir(os.path.join(root, d))
+                   and not d.endswith('_mask') and not d.startswith('.')]
         fnames, fnames2, labels = [], [], []
         for idx, domain in enumerate(sorted(domains)):
             class_dir = os.path.join(root, domain)

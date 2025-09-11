@@ -27,7 +27,8 @@ def str2bool(v):
 
 def subdirs(dname):
     return [d for d in os.listdir(dname)
-            if os.path.isdir(os.path.join(dname, d)) and not d.endswith('_mask')]
+            if os.path.isdir(os.path.join(dname, d))
+            and not d.endswith('_mask') and not d.startswith('.')]
 
 
 def main(args):
