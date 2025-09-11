@@ -65,33 +65,38 @@ def calculate_metrics(nets, args, step, mode):
             else:
                 print('Generating images and calculating LPIPS for %s...' % task)
 
-            for i, x_src in enumerate(tqdm(loader_src, total=len(loader_src))):
+            for i, (x_src, m_src) in enumerate(tqdm(loader_src, total=len(loader_src))):
                 N = x_src.size(0)
                 x_src = x_src.to(device)
+                m_src = m_src.to(device)
                 y_trg = torch.tensor([trg_idx] * N).to(device)
                 masks = nets.fan.get_heatmap(x_src) if args.w_hpf > 0 else None
 
-                # generate 10 outputs from the same input
                 group_of_images = []
                 for j in range(args.num_outs_per_domain):
                     if mode == 'latent':
                         z_trg = torch.randn(N, args.latent_dim).to(device)
                         s_trg = nets.mapping_network(z_trg, y_trg)
+                        s_fg, s_bg = s_trg, s_trg
                     else:
                         try:
-                            x_ref = next(iter_ref).to(device)
+                            x_ref, m_ref = next(iter_ref)
+                            x_ref = x_ref.to(device)
+                            m_ref = m_ref.to(device)
                         except:
                             iter_ref = iter(loader_ref)
-                            x_ref = next(iter_ref).to(device)
+                            x_ref, m_ref = next(iter_ref)
+                            x_ref = x_ref.to(device)
+                            m_ref = m_ref.to(device)
 
                         if x_ref.size(0) > N:
                             x_ref = x_ref[:N]
-                        s_trg = nets.style_encoder(x_ref, y_trg)
+                            m_ref = m_ref[:N]
+                        s_fg, s_bg = nets.style_encoder(x_ref, y_trg, m_ref)
 
-                    x_fake = nets.generator(x_src, s_trg, masks=masks)
+                    x_fake = nets.generator(x_src, s_fg, seg=m_src, s_bg=s_bg, masks=masks)
                     group_of_images.append(x_fake)
 
-                    # save generated images to calculate FID later
                     for k in range(N):
                         filename = os.path.join(
                             path_fake,
