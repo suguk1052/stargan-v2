@@ -40,7 +40,7 @@ This fork accepts binary masks that separate foreground objects from the backgro
   `src`/`ref` samples.
 - The style encoder outputs foreground (`s_fg`) and background (`s_bg`) style codes, and the generator blends them using a blurred version of the mask to avoid hard edges.
 
-Enable this behavior with `--use_mask`. Without the flag, the network falls back to the original 3-channel formulation.
+Enable this behavior with `--use_mask`. Without the flag, the network falls back to the original 3-channel formulation, and pretrained checkpoints from the official release continue to load without modification.
 
 With masks present, the model learns separate appearances for object and background while keeping the overall image coherent.
 

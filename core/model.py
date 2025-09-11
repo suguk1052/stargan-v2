@@ -155,13 +155,16 @@ class HighPass(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, img_height=256, img_width=256, style_dim=64, max_conv_dim=512, w_hpf=1):
+    def __init__(self, img_height=256, img_width=256, style_dim=64,
+                 max_conv_dim=512, w_hpf=1, use_mask=False):
         super().__init__()
         img_size = min(img_height, img_width)
         dim_in = 2**14 // img_size
         self.img_height = img_height
         self.img_width = img_width
-        self.from_rgb = nn.Conv2d(4, dim_in, 3, 1, 1)
+        self.use_mask = use_mask
+        in_channels = 4 if use_mask else 3
+        self.from_rgb = nn.Conv2d(in_channels, dim_in, 3, 1, 1)
         self.encode = nn.ModuleList()
         self.decode = nn.ModuleList()
         self.to_rgb = nn.Sequential(
@@ -200,7 +203,8 @@ class Generator(nn.Module):
         if s_bg is None:
             s_bg = s_fg
         seg = smooth_mask(seg)
-        x = torch.cat([x, seg], dim=1)
+        if self.use_mask:
+            x = torch.cat([x, seg], dim=1)
         x = self.from_rgb(x)
         cache = {}
         for block in self.encode:
@@ -252,12 +256,15 @@ class MappingNetwork(nn.Module):
 
 
 class StyleEncoder(nn.Module):
-    def __init__(self, img_height=256, img_width=256, style_dim=64, num_domains=2, max_conv_dim=512):
+    def __init__(self, img_height=256, img_width=256, style_dim=64,
+                 num_domains=2, max_conv_dim=512, use_mask=False):
         super().__init__()
         img_size = min(img_height, img_width)
         dim_in = 2**14 // img_size
         blocks = []
-        blocks += [nn.Conv2d(4, dim_in, 3, 1, 1)]
+        self.use_mask = use_mask
+        in_channels = 4 if use_mask else 3
+        blocks += [nn.Conv2d(in_channels, dim_in, 3, 1, 1)]
 
         repeat_num = int(np.log2(img_size)) - 2
         for _ in range(repeat_num):
@@ -271,28 +278,34 @@ class StyleEncoder(nn.Module):
         self.conv = nn.Conv2d(dim_out, dim_out, 1, 1, 0)
         self.act = nn.LeakyReLU(0.2)
 
-        self.unshared_fg = nn.ModuleList()
-        self.unshared_bg = nn.ModuleList()
-        for _ in range(num_domains):
-            self.unshared_fg += [nn.Linear(dim_out, style_dim)]
-            self.unshared_bg += [nn.Linear(dim_out, style_dim)]
+        if use_mask:
+            self.unshared_fg = nn.ModuleList()
+            self.unshared_bg = nn.ModuleList()
+            for _ in range(num_domains):
+                self.unshared_fg += [nn.Linear(dim_out, style_dim)]
+                self.unshared_bg += [nn.Linear(dim_out, style_dim)]
+        else:
+            self.unshared = nn.ModuleList()
+            for _ in range(num_domains):
+                self.unshared += [nn.Linear(dim_out, style_dim)]
         self.num_domains = num_domains
 
     def forward(self, x, y, mask=None):
         y = torch.remainder(y, self.num_domains)
-        if mask is None:
-            mask = torch.ones(x.size(0), 1, x.size(2), x.size(3), device=x.device)
-            x_in = torch.cat([x, mask], dim=1)
-            h = self.shared(x_in)
+        if not self.use_mask:
+            h = self.shared(x)
             h = self.conv(self.pool(h))
             h = self.act(h).view(h.size(0), -1)
             out = []
-            for layer_fg in self.unshared_fg:
-                out += [layer_fg(h)]
+            for layer in self.unshared:
+                out += [layer(h)]
             out = torch.stack(out, dim=1)
             idx = torch.arange(y.size(0), device=y.device)
             s = out[idx, y]
             return s, s
+
+        if mask is None:
+            mask = torch.ones(x.size(0), 1, x.size(2), x.size(3), device=x.device)
         mask = smooth_mask(mask)
         x_in = torch.cat([x, mask], dim=1)
         h = self.shared(x_in)
@@ -347,9 +360,14 @@ class Discriminator(nn.Module):
 
 
 def build_model(args):
-    generator = nn.DataParallel(Generator(args.img_height, args.img_width, args.style_dim, w_hpf=args.w_hpf))
+    use_mask = getattr(args, 'use_mask', False)
+    generator = nn.DataParallel(Generator(args.img_height, args.img_width,
+                                         args.style_dim, w_hpf=args.w_hpf,
+                                         use_mask=use_mask))
     mapping_network = nn.DataParallel(MappingNetwork(args.latent_dim, args.style_dim, args.num_domains))
-    style_encoder = nn.DataParallel(StyleEncoder(args.img_height, args.img_width, args.style_dim, args.num_domains))
+    style_encoder = nn.DataParallel(StyleEncoder(args.img_height, args.img_width,
+                                                args.style_dim, args.num_domains,
+                                                use_mask=use_mask))
     discriminator = nn.DataParallel(Discriminator(args.img_height, args.img_width, args.num_domains))
     generator_ema = copy.deepcopy(generator)
     mapping_network_ema = copy.deepcopy(mapping_network)

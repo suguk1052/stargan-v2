@@ -16,6 +16,7 @@ parser.add_argument('--style_dim', type=int, default=64)
 parser.add_argument('--latent_dim', type=int, default=16)
 parser.add_argument('--num_domains', type=int, default=2)
 parser.add_argument('--w_hpf', type=float, default=0)
+parser.add_argument('--use_mask', action='store_true')
 args = parser.parse_args(args=[])
 
 def _round16(x):
