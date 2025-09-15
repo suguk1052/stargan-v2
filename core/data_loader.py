@@ -51,17 +51,20 @@ class CenterCropResize:
 
 
 class DefaultDataset(data.Dataset):
-    def __init__(self, root, transform=None):
+    def __init__(self, root, transform=None, return_paths=False):
         self.samples = listdir(root)
         self.samples.sort()
         self.transform = transform
         self.targets = None
+        self.return_paths = return_paths
 
     def __getitem__(self, index):
         fname = self.samples[index]
         img = Image.open(fname).convert('RGB')
         if self.transform is not None:
             img = self.transform(img)
+        if self.return_paths:
+            return img, fname.name
         return img
 
     def __len__(self):
@@ -148,7 +151,7 @@ def get_train_loader(root, which='source', img_size=256,
 
 def get_eval_loader(root, img_size=256, batch_size=32,
                     imagenet_normalize=True, shuffle=True,
-                    num_workers=4, drop_last=False):
+                    num_workers=4, drop_last=False, return_paths=False):
     print('Preparing DataLoader for the evaluation phase...')
     if isinstance(img_size, tuple):
         height, width = img_size
@@ -171,7 +174,7 @@ def get_eval_loader(root, img_size=256, batch_size=32,
         transforms.Normalize(mean=mean, std=std)
     ])
 
-    dataset = DefaultDataset(root, transform=transform)
+    dataset = DefaultDataset(root, transform=transform, return_paths=return_paths)
     return data.DataLoader(dataset=dataset,
                            batch_size=batch_size,
                            shuffle=shuffle,
