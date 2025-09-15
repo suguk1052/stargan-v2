@@ -97,6 +97,31 @@ python main.py --mode sample --dataset afhq --num_domains 3 --w_hpf 0 \
 
 <p align="left"><img width="99%" src="assets/afhq_interpolation.gif" /></p>
 
+## Simple image generation
+To generate images without running the full evaluation loop, use `generate.py`.  
+Provide the experiment directory containing checkpoints, an input directory of source images, and an output directory.  
+Choose `reference` mode to guide synthesis with reference images, or `latent` mode to sample random styles.
+
+```bash
+# reference-guided generation
+python generate.py --expr_dir expr/celeba_hq_experiment \
+                   --checkpoint 100000 \
+                   --src_dir path/to/src \
+                   --ref_dir path/to/ref \
+                   --out_dir path/to/out \
+                   --mode reference
+
+# latent-guided generation (produces two outputs per source)
+python generate.py --expr_dir expr/celeba_hq_experiment \
+                   --checkpoint 100000 \
+                   --src_dir path/to/src \
+                   --out_dir path/to/out \
+                   --mode latent --num_samples 2
+```
+
+Each result is stored as `<original_name>_01.png`, `<original_name>_02.png`, and so on.  
+For reference mode, the reference directory should contain subfolders for each domain.
+
 ## Evaluation metrics
 To evaluate StarGAN v2 using [Fr&eacute;chet Inception Distance (FID)](https://arxiv.org/abs/1706.08500) and [Learned Perceptual Image Patch Similarity (LPIPS)](https://arxiv.org/abs/1801.03924), run the following commands:
 
