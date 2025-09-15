@@ -53,7 +53,8 @@ def calculate_metrics(nets, args, step, mode):
             loader_src = get_eval_loader(root=path_src,
                                          img_size=(args.img_height, args.img_width),
                                          batch_size=args.val_batch_size,
-                                         imagenet_normalize=False)
+                                         imagenet_normalize=False,
+                                         return_paths=True)
 
             task = '%s2%s' % (src_domain, trg_domain)
             path_fake = os.path.join(args.eval_dir, mode, task)
@@ -65,7 +66,7 @@ def calculate_metrics(nets, args, step, mode):
             else:
                 print('Generating images and calculating LPIPS for %s...' % task)
 
-            for i, x_src in enumerate(tqdm(loader_src, total=len(loader_src))):
+            for i, (x_src, fnames) in enumerate(tqdm(loader_src, total=len(loader_src))):
                 N = x_src.size(0)
                 x_src = x_src.to(device)
                 y_trg = torch.tensor([trg_idx] * N).to(device)
@@ -93,9 +94,10 @@ def calculate_metrics(nets, args, step, mode):
 
                     # save generated images to calculate FID later
                     for k in range(N):
+                        basename, _ = os.path.splitext(fnames[k])
                         filename = os.path.join(
                             path_fake,
-                            '%.4i_%.2i.png' % (i*args.val_batch_size+(k+1), j+1))
+                            f"{basename}_{j+1:02d}.png")
                         utils.save_image(x_fake[k], ncol=1, filename=filename)
 
                 if not skip_lpips:
