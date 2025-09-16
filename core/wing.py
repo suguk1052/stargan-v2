@@ -407,12 +407,14 @@ def pad_mirror(img, landmarks):
 def align_faces(args, input_dir, output_dir):
     import os
     from torchvision import transforms
+    from torchvision.transforms import InterpolationMode
     from PIL import Image
     from core.utils import save_image
 
     aligner = FaceAligner(args.wing_path, args.lm_path, args.img_size)
     transform = transforms.Compose([
-        transforms.Resize((args.img_size, args.img_size)),
+        transforms.Resize((args.img_size, args.img_size),
+                          interpolation=InterpolationMode.BILINEAR),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5, 0.5, 0.5],
                              std=[0.5, 0.5, 0.5]),

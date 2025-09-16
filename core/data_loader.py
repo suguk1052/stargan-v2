@@ -21,6 +21,8 @@ import torch
 from torch.utils import data
 from torch.utils.data.sampler import WeightedRandomSampler
 from torchvision import transforms
+from torchvision.transforms import InterpolationMode
+import torchvision.transforms.functional as TF
 from torchvision.datasets import ImageFolder
 
 
@@ -47,7 +49,8 @@ class CenterCropResize:
             new_h = int(w / self.target_ratio)
             top = (h - new_h) // 2
             img = img.crop((0, top, w, top + new_h))
-        return img.resize((self.target_w, self.target_h), Image.BILINEAR)
+        return TF.resize(img, (self.target_h, self.target_w),
+                         interpolation=InterpolationMode.BILINEAR)
 
 
 class DefaultDataset(data.Dataset):
@@ -120,7 +123,9 @@ def get_train_loader(root, which='source', img_size=256,
     target_ratio = width / height
 
     crop = transforms.RandomResizedCrop(
-        (height, width), scale=[0.8, 1.0], ratio=[0.9 * target_ratio, 1.1 * target_ratio])
+        (height, width), scale=[0.8, 1.0],
+        ratio=[0.9 * target_ratio, 1.1 * target_ratio],
+        interpolation=InterpolationMode.BILINEAR)
     rand_crop = transforms.Lambda(
         lambda x: crop(x) if random.random() < prob else x)
 
@@ -169,7 +174,8 @@ def get_eval_loader(root, img_size=256, batch_size=32,
 
     transform = transforms.Compose([
         CenterCropResize((height, width)),
-        transforms.Resize([resize_h, resize_w]),
+        transforms.Resize([resize_h, resize_w],
+                          interpolation=InterpolationMode.BILINEAR),
         transforms.ToTensor(),
         transforms.Normalize(mean=mean, std=std)
     ])
