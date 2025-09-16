@@ -97,6 +97,35 @@ python main.py --mode sample --dataset afhq --num_domains 3 --w_hpf 0 \
 
 <p align="left"><img width="99%" src="assets/afhq_interpolation.gif" /></p>
 
+## Quick generation workflow
+Use the new `generate` mode to quickly synthesize individual outputs for each
+source image. The command below reuses the same directories as the sampling
+examples above but writes per-image results such as `male_000001_01.png` to
+`expr/results`.
+
+```bash
+python main.py --mode generate --dataset celeba_hq --num_domains 2 --w_hpf 1 \
+               --expr_dir expr/celeba_hq_experiment --resume_iter 100000 \
+               --src_dir assets/representative/celeba_hq/src \
+               --ref_dir assets/representative/celeba_hq/ref \
+               --num_samples 3
+```
+
+By default the generator loops over every domain. Provide `--target_domain`
+to restrict the output domains or to switch to latent-guided synthesis when
+no reference directory is available. The example below disables references by
+setting an empty `ref_dir` and produces four latent samples for domain index 1:
+
+```bash
+python main.py --mode generate --dataset celeba_hq --num_domains 2 --w_hpf 1 \
+               --expr_dir expr/celeba_hq_experiment --resume_iter 100000 \
+               --src_dir assets/representative/celeba_hq/src \
+               --ref_dir '' --target_domain 1 --num_samples 4
+```
+
+Each generated image is saved as `<orig_name>_XX.png`, where `orig_name` is
+derived from the original filename and `XX` is a 1-based counter.
+
 ## Evaluation metrics
 To evaluate StarGAN v2 using [Fr&eacute;chet Inception Distance (FID)](https://arxiv.org/abs/1706.08500) and [Learned Perceptual Image Patch Similarity (LPIPS)](https://arxiv.org/abs/1801.03924), run the following commands:
 

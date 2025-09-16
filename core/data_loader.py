@@ -24,6 +24,18 @@ from torchvision import transforms
 from torchvision.datasets import ImageFolder
 
 
+class ImageFolderWithFilenames(ImageFolder):
+    """ImageFolder extension that also returns a domain-prefixed file stem."""
+
+    def __getitem__(self, index):
+        img, target = super().__getitem__(index)
+        path, _ = self.samples[index]
+        path = Path(path)
+        domain = path.parent.name
+        fname = f'{domain}_{path.stem}' if domain else path.stem
+        return img, target, fname
+
+
 def listdir(dname):
     fnames = list(chain(*[list(Path(dname).rglob('*.' + ext))
                           for ext in ['png', 'jpg', 'jpeg', 'JPG']]))
@@ -184,7 +196,7 @@ def get_eval_loader(root, img_size=256, batch_size=32,
 
 
 def get_test_loader(root, img_size=256, batch_size=32,
-                    shuffle=True, num_workers=4):
+                    shuffle=True, num_workers=4, return_paths=False):
     print('Preparing DataLoader for the generation phase...')
     if isinstance(img_size, tuple):
         height, width = img_size
@@ -198,7 +210,10 @@ def get_test_loader(root, img_size=256, batch_size=32,
                              std=[0.5, 0.5, 0.5]),
     ])
 
-    dataset = ImageFolder(root, transform)
+    if return_paths:
+        dataset = ImageFolderWithFilenames(root, transform)
+    else:
+        dataset = ImageFolder(root, transform)
     return data.DataLoader(dataset=dataset,
                            batch_size=batch_size,
                            shuffle=shuffle,
