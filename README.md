@@ -99,8 +99,9 @@ python main.py --mode sample --dataset afhq --num_domains 3 --w_hpf 0 \
 
 ## Quick generation workflow
 Use the new `generate` mode to quickly synthesize individual outputs for each
-source image. The command below reuses the same directories as the sampling
-examples above but writes per-image results such as `male_000001_01.png` to
+source image. The source directory may contain images directly (no domain
+sub-folders required). The command below reuses the same directories as the
+sampling examples above but writes per-image results such as `000001_01.png` to
 `expr/results`.
 
 ```bash
@@ -124,7 +125,10 @@ python main.py --mode generate --dataset celeba_hq --num_domains 2 --w_hpf 1 \
 ```
 
 Each generated image is saved as `<orig_name>_XX.png`, where `orig_name` is
-derived from the original filename and `XX` is a 1-based counter.
+derived from the original filename and `XX` is a 1-based counter. When
+reference images are provided, the generator samples random reference styles
+for every output so different source images (and different samples of the same
+source) use varied guidance.
 
 ## Evaluation metrics
 To evaluate StarGAN v2 using [Fr&eacute;chet Inception Distance (FID)](https://arxiv.org/abs/1706.08500) and [Learned Perceptual Image Patch Similarity (LPIPS)](https://arxiv.org/abs/1801.03924), run the following commands:
