@@ -24,10 +24,35 @@ from torchvision import transforms
 from torchvision.datasets import ImageFolder
 
 
+class ImageFolderWithFilenames(ImageFolder):
+    """ImageFolder extension that also returns the original filename."""
+
+    def __getitem__(self, index):
+        img, target = super().__getitem__(index)
+        path, _ = self.samples[index]
+        fname = Path(path).name
+        return img, target, fname
+
+
 def listdir(dname):
     fnames = list(chain(*[list(Path(dname).rglob('*.' + ext))
                           for ext in ['png', 'jpg', 'jpeg', 'JPG']]))
     return fnames
+
+
+def _analyze_directory(root):
+    """Return booleans indicating whether a directory has images or sub-directories."""
+    root = Path(root)
+    has_images = False
+    has_subdirs = False
+    for entry in root.iterdir():
+        if entry.is_dir():
+            has_subdirs = True
+        elif entry.is_file() and entry.suffix.lower() in {'.png', '.jpg', '.jpeg'}:
+            has_images = True
+        if has_images and has_subdirs:
+            break
+    return has_images, has_subdirs
 
 # Center-crop to match the target aspect ratio, then resize
 class CenterCropResize:
@@ -184,7 +209,7 @@ def get_eval_loader(root, img_size=256, batch_size=32,
 
 
 def get_test_loader(root, img_size=256, batch_size=32,
-                    shuffle=True, num_workers=4):
+                    shuffle=True, num_workers=4, return_paths=False):
     print('Preparing DataLoader for the generation phase...')
     if isinstance(img_size, tuple):
         height, width = img_size
@@ -198,7 +223,21 @@ def get_test_loader(root, img_size=256, batch_size=32,
                              std=[0.5, 0.5, 0.5]),
     ])
 
-    dataset = ImageFolder(root, transform)
+    has_images, has_subdirs = _analyze_directory(root)
+    if return_paths:
+        if has_subdirs:
+            dataset = ImageFolderWithFilenames(root, transform)
+        elif has_images:
+            dataset = DefaultDataset(root, transform=transform, return_paths=True)
+        else:
+            raise ValueError(f'No image files found in {root}')
+    else:
+        if has_subdirs:
+            dataset = ImageFolder(root, transform)
+        elif has_images:
+            dataset = DefaultDataset(root, transform=transform)
+        else:
+            raise ValueError(f'No image files found in {root}')
     return data.DataLoader(dataset=dataset,
                            batch_size=batch_size,
                            shuffle=shuffle,

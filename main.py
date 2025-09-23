@@ -73,6 +73,26 @@ def main(args):
                                             num_workers=args.num_workers))
         solver.sample(loaders)
 
+    elif args.mode == 'generate':
+        if not os.path.isdir(args.src_dir):
+            raise ValueError(f'Source directory not found: {args.src_dir}')
+
+        loaders = Munch(src=get_test_loader(root=args.src_dir,
+                                            img_size=(args.img_height, args.img_width),
+                                            batch_size=args.val_batch_size,
+                                            shuffle=False,
+                                            num_workers=args.num_workers,
+                                            return_paths=True))
+
+        if args.ref_dir and os.path.isdir(args.ref_dir):
+            loaders.ref = get_test_loader(root=args.ref_dir,
+                                          img_size=(args.img_height, args.img_width),
+                                          batch_size=args.val_batch_size,
+                                          shuffle=True,
+                                          num_workers=args.num_workers,
+                                          return_paths=True)
+        solver.generate(loaders, args)
+
     elif args.mode == 'latent_sample':
         assert len(subdirs(args.src_dir)) == args.num_domains
         loaders = Munch(src=get_test_loader(root=args.src_dir,
@@ -145,10 +165,12 @@ if __name__ == '__main__':
                         help='Weight decay for optimizer')
     parser.add_argument('--num_outs_per_domain', type=int, default=4,
                         help='Number of generated images per domain during sampling')
+    parser.add_argument('--num_samples', type=int, default=1,
+                        help='Number of generated images per source during quick generation')
 
     # misc
     parser.add_argument('--mode', type=str, required=True,
-                        choices=['train', 'sample', 'eval', 'align', 'latent_sample'],
+                        choices=['train', 'sample', 'eval', 'align', 'latent_sample', 'generate'],
                         help='This argument is used in solver')
     parser.add_argument('--num_workers', type=int, default=4,
                         help='Number of workers used in DataLoader')
@@ -182,6 +204,8 @@ if __name__ == '__main__':
                         help='Directory containing input source images')
     parser.add_argument('--ref_dir', type=str, default='assets/representative/celeba_hq/ref',
                         help='Directory containing input reference images')
+    parser.add_argument('--target_domain', type=str, default=None,
+                        help='Optional target domain name or index for quick generation')
     parser.add_argument('--inp_dir', type=str, default='assets/representative/custom/female',
                         help='input directory when aligning faces')
     parser.add_argument('--out_dir', type=str, default='assets/representative/celeba_hq/src/female',

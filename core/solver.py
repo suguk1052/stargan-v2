@@ -12,6 +12,8 @@ import os
 from os.path import join as ospj
 import time
 import datetime
+from collections import defaultdict
+from pathlib import Path
 from munch import Munch
 
 import torch
@@ -188,6 +190,146 @@ class Solver(nn.Module):
         fname = ospj(args.result_dir, 'video_ref.mp4')
         print('Working on {}...'.format(fname))
         utils.video_ref(nets_ema, args, src.x, ref.x, ref.y, fname)
+
+    @torch.no_grad()
+    def generate(self, loaders, args):
+        nets_ema = self.nets_ema
+        os.makedirs(args.result_dir, exist_ok=True)
+        self._load_checkpoint(args.resume_iter)
+
+        for net in nets_ema.values():
+            net.eval()
+
+        src_loader = loaders.src
+        class_to_idx = getattr(src_loader.dataset, 'class_to_idx', {})
+        idx_to_class = {idx: name for name, idx in class_to_idx.items()}
+        if hasattr(loaders, 'ref'):
+            ref_class_to_idx = getattr(loaders.ref.dataset, 'class_to_idx', {})
+            for name, idx in ref_class_to_idx.items():
+                idx_to_class.setdefault(idx, name)
+
+        def _parse_target(target):
+            if target is None:
+                return list(range(args.num_domains))
+            if isinstance(target, str):
+                token = target.strip()
+                if token in idx_to_class.values():
+                    indices = [idx for idx, name in idx_to_class.items() if name == token]
+                    if indices:
+                        return indices
+                    raise ValueError('Unknown target_domain: %s' % target)
+                if token.isdigit():
+                    idx = int(token)
+                else:
+                    raise ValueError('Unknown target_domain: %s' % target)
+            else:
+                idx = int(target)
+            if idx < 0 or idx >= args.num_domains:
+                raise ValueError('target_domain %s is out of range [0, %d).' % (target, args.num_domains))
+            return [idx]
+
+        target_domains = sorted(set(_parse_target(args.target_domain)))
+        if not target_domains:
+            raise ValueError('No target domains available for generation.')
+
+        use_references = hasattr(loaders, 'ref')
+        style_cache = {idx: [] for idx in target_domains}
+
+        if args.num_samples < 1:
+            raise ValueError('num_samples must be a positive integer.')
+
+        if use_references:
+            ref_loader = loaders.ref
+            for x_ref, y_ref, _ in ref_loader:
+                x_ref = x_ref.to(self.device)
+                y_ref = y_ref.to(self.device)
+                styles = nets_ema.style_encoder(x_ref, y_ref)
+                for style, label in zip(styles, y_ref):
+                    label_idx = int(label.item())
+                    if label_idx in style_cache:
+                        style_cache[label_idx].append(style.detach().cpu())
+
+            available_domains = [idx for idx in target_domains if style_cache[idx]]
+            missing_domains = [idx for idx in target_domains if not style_cache[idx]]
+            if missing_domains:
+                domain_list = ', '.join(idx_to_class.get(idx, str(idx)) for idx in missing_domains)
+                if len(available_domains) == 0:
+                    print('No reference images found for %s. Falling back to latent sampling.' % domain_list)
+                    use_references = False
+                else:
+                    print('Skipping domains without references: %s' % domain_list)
+                    target_domains = available_domains
+                    style_cache = {idx: style_cache[idx] for idx in target_domains}
+
+        if use_references:
+            style_cache = {idx: torch.stack(style_cache[idx], dim=0)
+                           for idx in target_domains}
+
+        if not use_references:
+            print('Generating samples using latent codes for domains: {}'
+                  .format(', '.join(idx_to_class.get(idx, str(idx)) for idx in target_domains)))
+
+        for net in self.nets.values():
+            net.eval()
+
+        counters = defaultdict(int)
+
+        for batch in src_loader:
+            if len(batch) == 3:
+                x_src, y_src, names = batch
+            elif len(batch) == 2:
+                x_src, names = batch
+                y_src = None
+            else:
+                raise ValueError('Unexpected batch structure from src loader.')
+
+            x_src = x_src.to(self.device)
+            batch_size = x_src.size(0)
+
+            if isinstance(names, (list, tuple)):
+                name_list = list(names)
+            else:
+                name_list = [names]
+
+            if y_src is not None:
+                if torch.is_tensor(y_src):
+                    label_list = y_src.tolist()
+                elif isinstance(y_src, (list, tuple)):
+                    label_list = list(y_src)
+                else:
+                    label_list = [int(y_src)]
+            else:
+                label_list = [None] * len(name_list)
+
+            if len(name_list) != batch_size:
+                raise ValueError('Mismatch between filenames and batch size in source loader.')
+
+            for domain_idx in target_domains:
+                y_trg = torch.full((batch_size,), domain_idx, dtype=torch.long, device=self.device)
+                for sample_idx in range(args.num_samples):
+                    if use_references:
+                        styles = style_cache[domain_idx]
+                        if styles.size(0) == 0:
+                            continue
+                        idxs = torch.randint(0, styles.size(0), (batch_size,), device=styles.device)
+                        style_code = styles[idxs].to(self.device)
+                    else:
+                        z_trg = torch.randn(batch_size, args.latent_dim).to(self.device)
+                        style_code = nets_ema.mapping_network(z_trg, y_trg)
+
+                    x_fake = nets_ema.generator(x_src, style_code, masks=None)
+
+                    for i, name in enumerate(name_list):
+                        base_name = Path(name).stem
+                        if i < len(label_list) and label_list[i] is not None:
+                            domain_name = idx_to_class.get(int(label_list[i]), '')
+                            prefix = f'{domain_name}_'
+                            if domain_name and base_name.startswith(prefix):
+                                base_name = base_name[len(prefix):]
+                        counters[base_name] += 1
+                        outfile = ospj(args.result_dir, f'{base_name}_{counters[base_name]:02d}.png')
+                        utils.save_image(x_fake[i:i+1], 1, outfile)
+                        print('Saved {}'.format(outfile))
 
     @torch.no_grad()
     def sample_with_latent(self, loaders):
