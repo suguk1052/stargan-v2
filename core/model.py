@@ -220,7 +220,10 @@ class Generator(nn.Module):
                 x = block(x, s_fg, None, None)
                 if (masks is not None) and (x.size(2) in [32, 64, 128]):
                     mask = masks[0] if x.size(2) in [32] else masks[1]
-                    mask = F.interpolate(mask, size=x.size(2), mode='bilinear')
+                    mask = F.interpolate(
+                        mask,
+                        size=(x.size(2), x.size(3)),
+                        mode='bilinear')
                     x = x + self.hpf(mask * cache[x.size(2)])
             return self.to_rgb(x)
 
@@ -237,11 +240,18 @@ class Generator(nn.Module):
                 cache[x.size(2)] = x
             x = block(x)
         for block in self.decode:
-            seg = F.interpolate(seg, size=x.size(2), mode='bilinear', align_corners=False)
+            seg = F.interpolate(
+                seg,
+                size=(x.size(2), x.size(3)),
+                mode='bilinear',
+                align_corners=False)
             x = block(x, s_fg, s_bg, seg)
             if (masks is not None) and (x.size(2) in [32, 64, 128]):
                 mask = masks[0] if x.size(2) in [32] else masks[1]
-                mask = F.interpolate(mask, size=x.size(2), mode='bilinear')
+                mask = F.interpolate(
+                    mask,
+                    size=(x.size(2), x.size(3)),
+                    mode='bilinear')
                 x = x + self.hpf(mask * cache[x.size(2)])
         return self.to_rgb(x)
 
@@ -334,7 +344,11 @@ class StyleEncoder(nn.Module):
         mask = smooth_mask(mask)
         x_in = torch.cat([x, mask], dim=1)
         h = self.shared(x_in)
-        mask = F.interpolate(mask, size=h.size(2), mode='bilinear', align_corners=False)
+        mask = F.interpolate(
+            mask,
+            size=(h.size(2), h.size(3)),
+            mode='bilinear',
+            align_corners=False)
         h_fg = h * mask
         h_bg = h * (1 - mask)
         h_fg = self.conv(self.pool(h_fg))
